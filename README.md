@@ -1,46 +1,68 @@
 # mnemom/deploy
 
-Centralized deployment orchestrator for all mnemom services.
+Centralized deployment orchestrator for all mnemom services and packages.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph triggers["Trigger"]
-        dispatch["repo CI passes\n(repository_dispatch)"]
-        manual["manual\n(workflow_dispatch)"]
+    subgraph trigger["Trigger"]
+        dispatch["repo CI passes"]
+        manual["manual dispatch"]
     end
 
-    subgraph tier1["Tier 1: Infrastructure"]
+    subgraph services["Services"]
         gw["smoltbot / gateway\n☁️ CF Worker"]
         obs["smoltbot / observer\n☁️ CF Worker"]
-        cli["smoltbot / cli\n📦 npm publish"]
-    end
-
-    subgraph tier2["Tier 2: Core API"]
+        cli["smoltbot / cli\n📦 npm"]
         api["mnemom-api\n☁️ CF Worker"]
-    end
-
-    subgraph tier3["Tier 3: Services"]
         rep["mnemom-reputation\n☁️ CF Worker"]
         risk["mnemom-risk\n☁️ CF Worker"]
         prover["mnemom-prover\n🐍 Modal"]
-    end
-
-    subgraph independent["Independent"]
         web["mnemom-website\n🌐 Netlify"]
         hunt["hunter\n✈️ Fly.io"]
+        qar-a["qar / app\n🌐 Netlify"]
+        qar-w["qar / worker\n☁️ CF Worker"]
     end
 
-    dispatch --> gw & obs & cli
-    manual --> gw & obs & cli
-    dispatch --> api
-    manual --> api
-    gw & obs --> api
-    api --> rep & risk & prover
-    dispatch --> web & hunt
-    manual --> web & hunt
+    subgraph packages["Packages"]
+        aap["aap\n📦 npm + PyPI"]
+        aip["aip\n📦 npm + PyPI"]
+        otel["aip-otel-exporter\n📦 npm + PyPI"]
+        types["mnemom-types\n📦 npm + PyPI"]
+    end
+
+    trigger --> services
+    trigger --> packages
 ```
+
+## Repos
+
+| Repo | Deploy Target | Type |
+|------|--------------|------|
+| smoltbot (gateway) | Cloudflare Worker | Service |
+| smoltbot (observer) | Cloudflare Worker | Service |
+| smoltbot (cli) | npm | Package |
+| mnemom-api | Cloudflare Worker | Service |
+| mnemom-reputation | Cloudflare Worker | Service |
+| mnemom-risk | Cloudflare Worker | Service |
+| mnemom-prover | Modal | Service |
+| mnemom-website | Netlify | Service |
+| hunter | Fly.io | Service |
+| qar (app) | Netlify | Service |
+| qar (worker) | Cloudflare Worker | Service |
+| aap | npm + PyPI | Package |
+| aip | npm + PyPI | Package |
+| aip-otel-exporter | npm + PyPI | Package |
+| mnemom-types | npm + PyPI | Package |
+
+### Not orchestrated
+
+These repos are **not** managed by this deploy workflow:
+
+- **`reputation-check`** — GitHub Action, consumed from the repo directly
+- **`docs`** — Mintlify auto-deploys on push
+- **`.github`** — Org profile README, no deploy
 
 ## How it works
 
@@ -49,9 +71,6 @@ flowchart LR
 3. CI dispatches to this orchestrator via `repository_dispatch`
 4. **Staging**: deploys automatically
 5. **Production**: single approval gate, then deploys
-
-The dependency graph ensures upstream services deploy before downstream ones.
-When deploying a single repo, unrelated jobs are skipped.
 
 ## Usage
 
@@ -87,6 +106,12 @@ gh workflow run deploy.yml --repo mnemom/deploy -f repos=mnemom-api -f environme
 
 # Deploy smoltbot + mnemom-api together
 gh workflow run deploy.yml --repo mnemom/deploy -f repos=smoltbot,mnemom-api -f environment=production
+
+# Deploy qar to staging
+gh workflow run deploy.yml --repo mnemom/deploy -f repos=qar -f environment=staging
+
+# Deploy aap package
+gh workflow run deploy.yml --repo mnemom/deploy -f repos=aap -f environment=production
 ```
 
 ### Dashboard
@@ -102,14 +127,16 @@ Add these to the `mnemom/deploy` repo settings:
 | Secret | Used by | Description |
 |--------|---------|-------------|
 | `DEPLOY_TOKEN` | All jobs | GitHub PAT with `repo` scope across mnemom org |
-| `CLOUDFLARE_API_TOKEN` | smoltbot, api, reputation, risk | Cloudflare API token |
-| `CLOUDFLARE_ACCOUNT_ID` | smoltbot, api, reputation, risk | Cloudflare account ID |
-| `NPM_TOKEN` | smoltbot/cli | npm publish auth token |
+| `CLOUDFLARE_API_TOKEN` | smoltbot, api, reputation, risk, qar | Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | smoltbot, api, reputation, risk, qar | Cloudflare account ID |
+| `NPM_TOKEN` | smoltbot/cli, aap, aip, aip-otel-exporter, mnemom-types | npm publish auth token |
+| `PYPI_API_TOKEN` | aap, aip, aip-otel-exporter, mnemom-types | PyPI publish auth token |
 | `MODAL_TOKEN_ID` | mnemom-prover | Modal deployment credentials |
 | `MODAL_TOKEN_SECRET` | mnemom-prover | Modal deployment credentials |
 | `FLY_API_TOKEN` | hunter | Fly.io deploy token |
-| `NETLIFY_AUTH_TOKEN` | mnemom-website | Netlify deploy token |
+| `NETLIFY_AUTH_TOKEN` | mnemom-website, qar | Netlify deploy token |
 | `NETLIFY_SITE_ID` | mnemom-website | Netlify site identifier |
+| `QAR_NETLIFY_SITE_ID` | qar | Netlify site identifier for qar app |
 | `VITE_SUPABASE_URL` | mnemom-website | Supabase URL (per environment) |
 | `VITE_SUPABASE_ANON_KEY` | mnemom-website | Supabase anon key (per environment) |
 

@@ -38,6 +38,11 @@ jobs:
       deploy-mnemom-prover: ${{ steps.plan.outputs.deploy-mnemom-prover }}
       deploy-mnemom-website: ${{ steps.plan.outputs.deploy-mnemom-website }}
       deploy-hunter: ${{ steps.plan.outputs.deploy-hunter }}
+      deploy-qar: ${{ steps.plan.outputs.deploy-qar }}
+      deploy-aap: ${{ steps.plan.outputs.deploy-aap }}
+      deploy-aip: ${{ steps.plan.outputs.deploy-aip }}
+      deploy-aip-otel-exporter: ${{ steps.plan.outputs.deploy-aip-otel-exporter }}
+      deploy-mnemom-types: ${{ steps.plan.outputs.deploy-mnemom-types }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
     steps:
@@ -76,6 +81,11 @@ jobs:
             set_deploy "mnemom-prover"
             set_deploy "mnemom-website"
             set_deploy "hunter"
+            set_deploy "qar"
+            set_deploy "aap"
+            set_deploy "aip"
+            set_deploy "aip-otel-exporter"
+            set_deploy "mnemom-types"
           else
             # Handle comma-separated list or single repo from dispatch
             for r in $(echo "$REPO" | tr ',' ' '); do
@@ -85,7 +95,7 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────
-  # Tier 1: Infrastructure (no dependencies)
+  # All deploy jobs run in parallel after plan
   # ─────────────────────────────────────────────
 
   smoltbot-gateway:
@@ -218,19 +228,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # ─────────────────────────────────────────────
-  # Tier 2: Core API (depends on infrastructure)
-  # ─────────────────────────────────────────────
-
   mnemom-api:
     name: "mnemom-api"
-    needs: [plan, smoltbot-gateway, smoltbot-observer]
-    if: |
-      always() &&
-      needs.plan.outputs.deploy-mnemom-api == 'true' &&
-      needs.plan.result == 'success' &&
-      (needs.smoltbot-gateway.result == 'success' || needs.smoltbot-gateway.result == 'skipped') &&
-      (needs.smoltbot-observer.result == 'success' || needs.smoltbot-observer.result == 'skipped')
+    needs: plan
+    if: needs.plan.outputs.deploy-mnemom-api == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
@@ -261,18 +262,10 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --env ${{ needs.plan.outputs.env }}
 
-  # ─────────────────────────────────────────────
-  # Tier 3: Services (depend on API)
-  # ─────────────────────────────────────────────
-
   mnemom-reputation:
     name: "mnemom-reputation"
-    needs: [plan, mnemom-api]
-    if: |
-      always() &&
-      needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
-      needs.plan.result == 'success' &&
-      (needs.mnemom-api.result == 'success' || needs.mnemom-api.result == 'skipped')
+    needs: plan
+    if: needs.plan.outputs.deploy-mnemom-reputation == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
@@ -307,12 +300,8 @@ jobs:
 
   mnemom-risk:
     name: "mnemom-risk"
-    needs: [plan, mnemom-api]
-    if: |
-      always() &&
-      needs.plan.outputs.deploy-mnemom-risk == 'true' &&
-      needs.plan.result == 'success' &&
-      (needs.mnemom-api.result == 'success' || needs.mnemom-api.result == 'skipped')
+    needs: plan
+    if: needs.plan.outputs.deploy-mnemom-risk == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
@@ -347,12 +336,8 @@ jobs:
 
   mnemom-prover:
     name: "mnemom-prover"
-    needs: [plan, mnemom-api]
-    if: |
-      always() &&
-      needs.plan.outputs.deploy-mnemom-prover == 'true' &&
-      needs.plan.result == 'success' &&
-      (needs.mnemom-api.result == 'success' || needs.mnemom-api.result == 'skipped')
+    needs: plan
+    if: needs.plan.outputs.deploy-mnemom-prover == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
@@ -380,10 +365,6 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-
-  # ─────────────────────────────────────────────
-  # Independent: Website + Hunter
-  # ─────────────────────────────────────────────
 
   mnemom-website:
     name: "mnemom-website"
@@ -465,6 +446,237 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+  qar-app:
+    name: "qar / app"
+    needs: plan
+    if: needs.plan.outputs.deploy-qar == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.env }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/qar
+          ref: ${{ needs.plan.outputs.source-repo == 'qar' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: app
+      - name: Build
+        working-directory: app
+        run: npm run build
+      - name: Deploy to Netlify
+        working-directory: app
+        run: npx netlify deploy ${{ needs.plan.outputs.env == 'production' && '--prod' || '--alias staging' }} --dir=.next --site=${{ secrets.QAR_NETLIFY_SITE_ID }}
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
+  qar-worker:
+    name: "qar / worker"
+    needs: plan
+    if: needs.plan.outputs.deploy-qar == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.env }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/qar
+          ref: ${{ needs.plan.outputs.source-repo == 'qar' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env ${{ needs.plan.outputs.env }}
+
+  aap:
+    name: "aap (publish)"
+    needs: plan
+    if: needs.plan.outputs.deploy-aap == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.env }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/aap
+          ref: ${{ needs.plan.outputs.source-repo == 'aap' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Publish npm
+        run: |
+          cd typescript && npm ci && npm run build
+          REMOTE=$(npm view @mnemom/aap version 2>/dev/null || echo "0.0.0")
+          LOCAL=$(node -p "require('./package.json').version")
+          if [ "$LOCAL" != "$REMOTE" ]; then npm publish --access public; else echo "v$LOCAL already published"; fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish PyPI
+        run: |
+          cd python && pip install build twine && python -m build
+          twine upload dist/* --skip-existing
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+  aip:
+    name: "aip (publish)"
+    needs: plan
+    if: needs.plan.outputs.deploy-aip == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.env }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/aip
+          ref: ${{ needs.plan.outputs.source-repo == 'aip' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Publish npm
+        run: |
+          cd typescript && npm ci && npm run build
+          REMOTE=$(npm view @mnemom/aip version 2>/dev/null || echo "0.0.0")
+          LOCAL=$(node -p "require('./package.json').version")
+          if [ "$LOCAL" != "$REMOTE" ]; then npm publish --access public; else echo "v$LOCAL already published"; fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build Python
+        run: cd python && pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist/
+          skip-existing: true
+
+  aip-otel-exporter:
+    name: "aip-otel-exporter (publish)"
+    needs: plan
+    if: needs.plan.outputs.deploy-aip-otel-exporter == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.env }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/aip-otel-exporter
+          ref: ${{ needs.plan.outputs.source-repo == 'aip-otel-exporter' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Publish npm
+        run: |
+          cd typescript && npm ci && npm run build
+          REMOTE=$(npm view @mnemom/aip-otel-exporter version 2>/dev/null || echo "0.0.0")
+          LOCAL=$(node -p "require('./package.json').version")
+          if [ "$LOCAL" != "$REMOTE" ]; then npm publish --access public; else echo "v$LOCAL already published"; fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build Python
+        run: cd python && pip install build && python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist/
+          skip-existing: true
+
+  mnemom-types:
+    name: "mnemom-types (publish)"
+    needs: plan
+    if: needs.plan.outputs.deploy-mnemom-types == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.plan.outputs.env }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/mnemom-types
+          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-types' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Publish npm
+        run: |
+          npm ci && npm run build
+          REMOTE=$(npm view @mnemom/types version 2>/dev/null || echo "0.0.0")
+          LOCAL=$(node -p "require('./package.json').version")
+          if [ "$LOCAL" != "$REMOTE" ]; then npm publish --access public; else echo "v$LOCAL already published"; fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish PyPI
+        run: |
+          cd python && pip install build twine && python -m build
+          twine upload dist/* --skip-existing
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
   # ─────────────────────────────────────────────
   # Summary
   # ─────────────────────────────────────────────
@@ -483,6 +695,12 @@ jobs:
       - mnemom-prover
       - mnemom-website
       - hunter
+      - qar-app
+      - qar-worker
+      - aap
+      - aip
+      - aip-otel-exporter
+      - mnemom-types
     runs-on: ubuntu-latest
     steps:
       - name: Results
@@ -500,6 +718,12 @@ jobs:
           echo "| mnemom-prover | ${{ needs.mnemom-prover.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| mnemom-website | ${{ needs.mnemom-website.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| hunter | ${{ needs.hunter.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| qar/app | ${{ needs.qar-app.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| qar/worker | ${{ needs.qar-worker.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| aap | ${{ needs.aap.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| aip | ${{ needs.aip.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| aip-otel-exporter | ${{ needs.aip-otel-exporter.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| mnemom-types | ${{ needs.mnemom-types.result }} |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check for failures
         if: contains(needs.*.result, 'failure')
