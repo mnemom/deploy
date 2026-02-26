@@ -40,16 +40,7 @@ jobs:
       deploy-hunter: ${{ steps.plan.outputs.deploy-hunter }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
-      token: ${{ steps.app-token.outputs.token }}
     steps:
-      - name: Generate app token
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
       - name: Determine deployment plan
         id: plan
         run: |
@@ -104,11 +95,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/smoltbot
           ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -133,11 +131,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/smoltbot
           ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -162,11 +167,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/smoltbot
           ref: ${{ needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -222,11 +234,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/mnemom-api
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -257,11 +276,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/mnemom-reputation
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -290,11 +316,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/mnemom-risk
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -323,11 +356,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/mnemom-prover
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-python@v5
         with:
@@ -352,11 +392,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/mnemom-website
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -393,11 +440,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.plan.outputs.env }}
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - uses: actions/checkout@v4
         with:
           repository: mnemom/hunter
           ref: main
-          token: ${{ needs.plan.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
