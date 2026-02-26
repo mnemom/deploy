@@ -420,6 +420,7 @@ jobs:
         run: |
           npx netlify deploy \
             ${{ needs.plan.outputs.env == 'production' && '--prod' || '--alias staging' }} \
+            --no-build \
             --dir=dist \
             --site=${{ secrets.NETLIFY_SITE_ID }}
         env:
