@@ -354,20 +354,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: mnemom/mnemom-website
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
+          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'staging' }}
           token: ${{ steps.app-token.outputs.token }}
+
+      - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-
-      - uses: pnpm/action-setup@v4
+          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build:client
         env:
+          VITE_API_URL: https://api-staging.mnemom.ai
+          VITE_GATEWAY_URL: https://gateway-staging.mnemom.ai
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
@@ -977,11 +980,12 @@ jobs:
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
           token: ${{ steps.app-token.outputs.token }}
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-
-      - uses: pnpm/action-setup@v4
+          cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
