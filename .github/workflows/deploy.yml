@@ -406,25 +406,23 @@ jobs:
       - uses: pnpm/action-setup@v4
 
       - run: pnpm install --frozen-lockfile
-        working-directory: client
 
       - name: Build
-        working-directory: client
         run: pnpm build:client
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Deploy
-        working-directory: client
         run: |
-          npx netlify deploy \
+          npx netlify-cli deploy \
             ${{ needs.plan.outputs.env == 'production' && '--prod' || '--alias staging' }} \
             --no-build \
-            --dir=dist \
-            --site=${{ secrets.NETLIFY_SITE_ID }}
+            --dir=dist/spa \
+            --message "Deploy from ${{ needs.plan.outputs.source-ref || 'manual' }}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
   hunter:
     name: "hunter"
