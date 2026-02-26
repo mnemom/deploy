@@ -21,8 +21,6 @@ flowchart LR
         prover["mnemom-prover\n🐍 Modal"]
         web["mnemom-website\n🌐 Netlify"]
         hunt["hunter\n✈️ Fly.io"]
-        qar-a["qar / app\n🌐 Netlify"]
-        qar-w["qar / worker\n☁️ CF Worker"]
     end
 
     subgraph packages["Packages"]
@@ -49,8 +47,6 @@ flowchart LR
 | mnemom-prover | Modal | Service |
 | mnemom-website | Netlify | Service |
 | hunter | Fly.io | Service |
-| qar (app) | Netlify | Service |
-| qar (worker) | Cloudflare Worker | Service |
 | aap | npm + PyPI | Package |
 | aip | npm + PyPI | Package |
 | aip-otel-exporter | npm + PyPI | Package |
@@ -107,8 +103,6 @@ gh workflow run deploy.yml --repo mnemom/deploy -f repos=mnemom-api -f environme
 # Deploy smoltbot + mnemom-api together
 gh workflow run deploy.yml --repo mnemom/deploy -f repos=smoltbot,mnemom-api -f environment=production
 
-# Deploy qar to staging
-gh workflow run deploy.yml --repo mnemom/deploy -f repos=qar -f environment=staging
 
 # Deploy aap package
 gh workflow run deploy.yml --repo mnemom/deploy -f repos=aap -f environment=production
@@ -127,16 +121,15 @@ Add these to the `mnemom/deploy` repo settings:
 | Secret | Used by | Description |
 |--------|---------|-------------|
 | `DEPLOY_TOKEN` | All jobs | GitHub PAT with `repo` scope across mnemom org |
-| `CLOUDFLARE_API_TOKEN` | smoltbot, api, reputation, risk, qar | Cloudflare API token |
-| `CLOUDFLARE_ACCOUNT_ID` | smoltbot, api, reputation, risk, qar | Cloudflare account ID |
+| `CLOUDFLARE_API_TOKEN` | smoltbot, api, reputation, risk | Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | smoltbot, api, reputation, risk | Cloudflare account ID |
 | `NPM_TOKEN` | smoltbot/cli, aap, aip, aip-otel-exporter, mnemom-types | npm publish auth token |
 | `PYPI_API_TOKEN` | aap, aip, aip-otel-exporter, mnemom-types | PyPI publish auth token |
 | `MODAL_TOKEN_ID` | mnemom-prover | Modal deployment credentials |
 | `MODAL_TOKEN_SECRET` | mnemom-prover | Modal deployment credentials |
 | `FLY_API_TOKEN` | hunter | Fly.io deploy token |
-| `NETLIFY_AUTH_TOKEN` | mnemom-website, qar | Netlify deploy token |
+| `NETLIFY_AUTH_TOKEN` | mnemom-website | Netlify deploy token |
 | `NETLIFY_SITE_ID` | mnemom-website | Netlify site identifier |
-| `QAR_NETLIFY_SITE_ID` | qar | Netlify site identifier for qar app |
 | `VITE_SUPABASE_URL` | mnemom-website | Supabase URL (per environment) |
 | `VITE_SUPABASE_ANON_KEY` | mnemom-website | Supabase anon key (per environment) |
 
