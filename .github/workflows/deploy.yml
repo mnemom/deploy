@@ -497,7 +497,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish PyPI
         run: |
-          cd python && pip install build twine && python -m build
+          pip install build twine && python -m build
           twine upload dist/* --skip-existing
         env:
           TWINE_USERNAME: __token__
@@ -534,17 +534,17 @@ jobs:
           python-version: "3.12"
       - name: Publish npm
         run: |
-          cd typescript && npm ci && npm run build
+          cd packages/typescript && npm ci && npm run build
           REMOTE=$(npm view @mnemom/aip version 2>/dev/null || echo "0.0.0")
           LOCAL=$(node -p "require('./package.json').version")
           if [ "$LOCAL" != "$REMOTE" ]; then npm publish --access public; else echo "v$LOCAL already published"; fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Build Python
-        run: cd python && pip install build && python -m build
+        run: cd packages/python && pip install build && python -m build
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: python/dist/
+          packages-dir: packages/python/dist/
           skip-existing: true
 
   aip-otel-exporter:
@@ -585,10 +585,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Build Python
-        run: cd python && pip install build && python -m build
+        run: cd packages/python && pip install build && python -m build
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: python/dist/
+          packages-dir: packages/python/dist/
           skip-existing: true
 
   mnemom-types:
