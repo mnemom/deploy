@@ -40,7 +40,16 @@ jobs:
       deploy-hunter: ${{ steps.plan.outputs.deploy-hunter }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
+      token: ${{ steps.app-token.outputs.token }}
     steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
       - name: Determine deployment plan
         id: plan
         run: |
@@ -99,7 +108,7 @@ jobs:
         with:
           repository: mnemom/smoltbot
           ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -128,7 +137,7 @@ jobs:
         with:
           repository: mnemom/smoltbot
           ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -157,7 +166,7 @@ jobs:
         with:
           repository: mnemom/smoltbot
           ref: ${{ needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -217,7 +226,7 @@ jobs:
         with:
           repository: mnemom/mnemom-api
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -252,7 +261,7 @@ jobs:
         with:
           repository: mnemom/mnemom-reputation
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -285,7 +294,7 @@ jobs:
         with:
           repository: mnemom/mnemom-risk
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -318,7 +327,7 @@ jobs:
         with:
           repository: mnemom/mnemom-prover
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-python@v5
         with:
@@ -347,7 +356,7 @@ jobs:
         with:
           repository: mnemom/mnemom-website
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || (needs.plan.outputs.env == 'production' && 'main' || 'staging') }}
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -388,7 +397,7 @@ jobs:
         with:
           repository: mnemom/hunter
           ref: main
-          token: ${{ secrets.DEPLOY_TOKEN }}
+          token: ${{ needs.plan.outputs.token }}
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
