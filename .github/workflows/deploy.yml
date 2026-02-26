@@ -58,6 +58,11 @@ jobs:
             REF=""
           fi
 
+          if [ -z "$ENV" ]; then
+            echo "::error::Environment not specified"
+            exit 1
+          fi
+
           echo "env=$ENV" >> "$GITHUB_OUTPUT"
           echo "source-ref=$REF" >> "$GITHUB_OUTPUT"
           echo "source-repo=$REPO" >> "$GITHUB_OUTPUT"
@@ -86,6 +91,8 @@ jobs:
             set_deploy "mnemom-types"
           else
             # Handle comma-separated list or single repo from dispatch
+            # Note: unknown repo names are accepted here by design — they simply
+            # produce an output that no job matches on, so they get silently skipped.
             for r in $(echo "$REPO" | tr ',' ' '); do
               r=$(normalize "$(echo "$r" | xargs)")
               set_deploy "$r"
@@ -101,6 +108,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-smoltbot == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -137,6 +145,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-smoltbot == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -173,6 +182,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-smoltbot == 'true' && needs.plan.outputs.env == 'production'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -231,6 +241,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-api == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -265,6 +276,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-reputation == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -301,6 +313,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-risk == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -337,6 +350,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-prover == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -369,6 +383,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-website == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -389,8 +404,6 @@ jobs:
           node-version: "22"
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: latest
 
       - run: pnpm install --frozen-lockfile
         working-directory: client
@@ -417,6 +430,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-hunter == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
@@ -449,6 +463,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-aap == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     permissions:
       contents: read
@@ -493,6 +508,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-aip == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     permissions:
       contents: read
@@ -536,6 +552,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-aip-otel-exporter == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     permissions:
       contents: read
@@ -561,7 +578,7 @@ jobs:
           python-version: "3.12"
       - name: Publish npm
         run: |
-          cd typescript && npm ci && npm run build
+          cd packages/typescript && npm ci && npm run build
           REMOTE=$(npm view @mnemom/aip-otel-exporter version 2>/dev/null || echo "0.0.0")
           LOCAL=$(node -p "require('./package.json').version")
           if [ "$LOCAL" != "$REMOTE" ]; then npm publish --access public; else echo "v$LOCAL already published"; fi
@@ -579,6 +596,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-types == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ needs.plan.outputs.env }}
     steps:
       - uses: actions/create-github-app-token@v1
