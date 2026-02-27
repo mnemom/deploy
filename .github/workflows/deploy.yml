@@ -549,7 +549,7 @@ jobs:
         working-directory: typescript
         run: |
           LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/aap version 2>/dev/null || echo "0.0.0")
+          REMOTE=$(npm view @mnemom/agent-alignment-protocol version 2>/dev/null || echo "0.0.0")
           echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
           echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
           if [ "$LOCAL" = "$REMOTE" ]; then
@@ -615,7 +615,7 @@ jobs:
         working-directory: packages/typescript
         run: |
           LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/aip version 2>/dev/null || echo "0.0.0")
+          REMOTE=$(npm view @mnemom/agent-integrity-protocol version 2>/dev/null || echo "0.0.0")
           echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
           echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
           if [ "$LOCAL" = "$REMOTE" ]; then
