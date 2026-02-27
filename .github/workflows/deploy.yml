@@ -208,6 +208,11 @@ jobs:
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
           token: ${{ steps.app-token.outputs.token }}
 
+      - name: Fetch shared packages (policy-engine, fault-lines)
+        run: git clone --depth 1 --branch staging https://github.com/mnemom/smoltbot.git ../smoltbot
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -246,10 +251,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
 
-      - run: npm ci
+      - run: npm install
         working-directory: server
 
       - uses: cloudflare/wrangler-action@v3
@@ -818,6 +821,11 @@ jobs:
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
           token: ${{ steps.app-token.outputs.token }}
 
+      - name: Fetch shared packages (policy-engine, fault-lines)
+        run: git clone --depth 1 --branch main https://github.com/mnemom/smoltbot.git ../smoltbot
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -860,10 +868,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
 
-      - run: npm ci
+      - run: npm install
         working-directory: server
 
       - uses: cloudflare/wrangler-action@v3
