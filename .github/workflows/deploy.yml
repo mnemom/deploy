@@ -370,10 +370,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Build
+        # Website staging uses production API so we always have real data.
+        # Backend services keep their own staging DBs for migration testing.
         run: pnpm build:client
         env:
-          VITE_API_URL: https://api-staging.mnemom.ai
-          VITE_GATEWAY_URL: https://gateway-staging.mnemom.ai
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
