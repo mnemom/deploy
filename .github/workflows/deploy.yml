@@ -396,44 +396,13 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID_STAGING }}
 
-  staging-hunter:
-    name: "staging / hunter"
-    needs: [plan, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover]
-    if: >-
-      always() &&
-      needs.plan.outputs.deploy-hunter == 'true' &&
-      !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/hunter
-          ref: main
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy to Fly.io
-        run: flyctl deploy --config fly.staging.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
   # ─────────────────────────────────────────────
   # Staging Gate
   # ─────────────────────────────────────────────
 
   staging-complete:
     name: "Staging Complete"
-    needs: [staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website, staging-hunter]
+    needs: [staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -450,7 +419,6 @@ jobs:
           echo "| risk | ${{ needs.staging-risk.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| prover | ${{ needs.staging-prover.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| website | ${{ needs.staging-website.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| hunter | ${{ needs.staging-hunter.result }} |" >> "$GITHUB_STEP_SUMMARY"
       - name: Check for failures
         if: contains(needs.*.result, 'failure')
         run: |
