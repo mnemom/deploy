@@ -1,0 +1,111 @@
+name: Publish npm (+ optional PyPI)
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Repository to publish from"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout"
+        required: true
+        type: string
+      npm-directory:
+        description: "Directory containing package.json for npm"
+        required: true
+        type: string
+      access:
+        description: "npm publish access level"
+        type: string
+        default: "public"
+      publish-pypi:
+        description: "Also publish to PyPI"
+        type: boolean
+        default: false
+      pypi-directory:
+        description: "Directory containing Python package (setup.py/pyproject.toml)"
+        type: string
+        default: "."
+      pypi-method:
+        description: "PyPI publish method: twine or gh-action"
+        type: string
+        default: "twine"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - uses: actions/setup-python@v5
+        if: inputs.publish-pypi
+        with:
+          python-version: "3.12"
+
+      - name: Check if version already published
+        id: version-check
+        working-directory: ${{ inputs.npm-directory }}
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          PKG_NAME=$(node -p "require('./package.json').name")
+          REMOTE=$(npm view "$PKG_NAME" version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "$PKG_NAME v$LOCAL already published — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Publishing $PKG_NAME v$LOCAL (npm has v$REMOTE)"
+          fi
+
+      - name: Build
+        if: steps.version-check.outputs.skip != 'true'
+        working-directory: ${{ inputs.npm-directory }}
+        run: npm ci && npm run build
+
+      - name: Publish npm
+        if: steps.version-check.outputs.skip != 'true'
+        working-directory: ${{ inputs.npm-directory }}
+        run: npm publish --access ${{ inputs.access }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build Python
+        if: inputs.publish-pypi
+        working-directory: ${{ inputs.pypi-directory }}
+        run: pip install build twine && python -m build
+
+      - name: Publish PyPI (twine)
+        if: inputs.publish-pypi && inputs.pypi-method == 'twine'
+        working-directory: ${{ inputs.pypi-directory }}
+        run: twine upload dist/* --skip-existing
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Publish PyPI (trusted publisher)
+        if: inputs.publish-pypi && inputs.pypi-method == 'gh-action'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ inputs.pypi-directory }}/dist/
+          skip-existing: true

@@ -1,0 +1,183 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to roll back"
+        required: true
+        type: choice
+        options:
+          - gateway
+          - observer
+          - api
+          - reputation
+          - risk
+          - website
+          - hunter
+          - prover
+      environment:
+        description: "Environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  rollback:
+    name: "Rollback ${{ inputs.service }} (${{ inputs.environment }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - name: Determine service config
+        id: config
+        run: |
+          case "${{ inputs.service }}" in
+            gateway)
+              echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/smoltbot" >> "$GITHUB_OUTPUT"
+              echo "directory=gateway" >> "$GITHUB_OUTPUT"
+              ;;
+            observer)
+              echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/smoltbot" >> "$GITHUB_OUTPUT"
+              echo "directory=observer" >> "$GITHUB_OUTPUT"
+              ;;
+            api)
+              echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/mnemom-api" >> "$GITHUB_OUTPUT"
+              echo "directory=." >> "$GITHUB_OUTPUT"
+              ;;
+            reputation)
+              echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/mnemom-reputation" >> "$GITHUB_OUTPUT"
+              echo "directory=server" >> "$GITHUB_OUTPUT"
+              ;;
+            risk)
+              echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/mnemom-risk" >> "$GITHUB_OUTPUT"
+              echo "directory=server" >> "$GITHUB_OUTPUT"
+              ;;
+            website)
+              echo "platform=netlify" >> "$GITHUB_OUTPUT"
+              ;;
+            hunter)
+              echo "platform=fly" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/hunter" >> "$GITHUB_OUTPUT"
+              ;;
+            prover)
+              echo "platform=modal" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/mnemom-prover" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      # ── Cloudflare Workers ──
+
+      - name: Checkout (Cloudflare)
+        if: steps.config.outputs.platform == 'cloudflare'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.config.outputs.repository }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup Node
+        if: steps.config.outputs.platform == 'cloudflare'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Rollback Cloudflare Worker
+        if: steps.config.outputs.platform == 'cloudflare'
+        working-directory: ${{ steps.config.outputs.directory }}
+        run: npx wrangler rollback --env ${{ inputs.environment }} --message "Rollback via GitHub Actions"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # ── Netlify ──
+
+      - name: Rollback Netlify
+        if: steps.config.outputs.platform == 'netlify'
+        run: |
+          if [ "${{ inputs.environment }}" = "staging" ]; then
+            SITE_ID="${{ secrets.NETLIFY_SITE_ID_STAGING }}"
+          else
+            SITE_ID="${{ secrets.NETLIFY_SITE_ID }}"
+          fi
+
+          DEPLOYS=$(curl -sf -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+            "https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys?per_page=2")
+          PREV_DEPLOY=$(echo "$DEPLOYS" | jq -r '.[1].id')
+
+          if [ -z "$PREV_DEPLOY" ] || [ "$PREV_DEPLOY" = "null" ]; then
+            echo "::error::No previous deploy found to roll back to"
+            exit 1
+          fi
+
+          echo "Rolling back to deploy $PREV_DEPLOY"
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+            "https://api.netlify.com/api/v1/deploys/${PREV_DEPLOY}/lock"
+          echo "Rollback complete"
+
+      # ── Fly.io ──
+
+      - name: Setup flyctl
+        if: steps.config.outputs.platform == 'fly'
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Checkout (Fly)
+        if: steps.config.outputs.platform == 'fly'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.config.outputs.repository }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Rollback Fly.io
+        if: steps.config.outputs.platform == 'fly'
+        run: |
+          PREV_IMAGE=$(flyctl releases --json | jq -r '.[1].ImageRef')
+          if [ -z "$PREV_IMAGE" ] || [ "$PREV_IMAGE" = "null" ]; then
+            echo "::error::No previous release found to roll back to"
+            exit 1
+          fi
+          echo "Rolling back to image: $PREV_IMAGE"
+          flyctl deploy --image "$PREV_IMAGE"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Modal ──
+
+      - name: Checkout (Modal)
+        if: steps.config.outputs.platform == 'modal'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.config.outputs.repository }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 2
+
+      - name: Setup Python
+        if: steps.config.outputs.platform == 'modal'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Rollback Modal
+        if: steps.config.outputs.platform == 'modal'
+        run: |
+          git checkout HEAD~1
+          pip install modal
+          echo "Redeploying previous commit ($(git rev-parse --short HEAD))"
+          modal deploy modal_app.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}

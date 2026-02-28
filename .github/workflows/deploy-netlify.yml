@@ -1,0 +1,77 @@
+name: Deploy Netlify
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to checkout"
+        required: true
+        type: string
+      environment:
+        description: "Target environment (staging or production)"
+        required: true
+        type: string
+      health-check-url:
+        description: "URL to check for 200 after deploy"
+        type: string
+        default: ""
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/mnemom-website
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build:client
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Deploy
+        run: |
+          npx netlify-cli deploy \
+            --prod \
+            --no-build \
+            --dir=dist/spa \
+            --message "${{ inputs.environment }} deploy from ${{ inputs.ref || 'manual' }}"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ inputs.environment == 'staging' && secrets.NETLIFY_SITE_ID_STAGING || secrets.NETLIFY_SITE_ID }}
+
+      - name: Health check
+        if: inputs.health-check-url != ''
+        run: |
+          for i in 1 2 3; do
+            HTTP_STATUS=$(curl -sf -o /dev/null -w '%{http_code}' "${{ inputs.health-check-url }}" 2>/dev/null || true)
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Health check passed (${{ inputs.health-check-url }})"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $HTTP_STATUS — retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Health check failed after 3 attempts (${{ inputs.health-check-url }})"
+          exit 1
