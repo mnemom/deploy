@@ -54,7 +54,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
+
+      - name: Authenticate npm for reads
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_READ_TOKEN }}" >> ~/.npmrc
 
       - uses: actions/setup-python@v5
         if: inputs.publish-pypi
@@ -64,8 +66,6 @@ jobs:
       - name: Check if version already published
         id: version-check
         working-directory: ${{ inputs.npm-directory }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
         run: |
           LOCAL=$(node -p "require('./package.json').version")
           PKG_NAME=$(node -p "require('./package.json').name")
@@ -83,8 +83,6 @@ jobs:
       - name: Build
         if: steps.version-check.outputs.skip != 'true'
         working-directory: ${{ inputs.npm-directory }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -92,6 +90,10 @@ jobs:
             npm install
           fi
           npm run build
+
+      - name: Clear read token for OIDC publish
+        if: steps.version-check.outputs.skip != 'true'
+        run: rm -f ~/.npmrc
 
       - name: Publish npm
         if: steps.version-check.outputs.skip != 'true'
