@@ -53,8 +53,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
+          node-version: "22"
+
+      - name: Authenticate npm for reads
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_READ_TOKEN }}" >> ~/.npmrc
 
       - uses: actions/setup-python@v5
         if: inputs.publish-pypi
@@ -83,12 +85,14 @@ jobs:
         working-directory: ${{ inputs.npm-directory }}
         run: npm ci && npm run build
 
+      - name: Clear read token for OIDC publish
+        if: steps.version-check.outputs.skip != 'true'
+        run: rm -f ~/.npmrc
+
       - name: Publish npm
         if: steps.version-check.outputs.skip != 'true'
         working-directory: ${{ inputs.npm-directory }}
-        run: npm publish --access ${{ inputs.access }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access ${{ inputs.access }}
 
       - name: Build Python
         if: inputs.publish-pypi
