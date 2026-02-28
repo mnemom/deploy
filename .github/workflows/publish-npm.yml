@@ -98,27 +98,22 @@ jobs:
       - name: Prepare OIDC publish
         if: steps.version-check.outputs.skip != 'true'
         run: |
-          echo "::group::OIDC environment check"
-          echo "ACTIONS_ID_TOKEN_REQUEST_URL set: $([ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && echo YES || echo NO)"
-          echo "GITHUB_ACTIONS: $GITHUB_ACTIONS"
           echo "npm: $(npm --version)  node: $(node --version)"
-          echo "::endgroup::"
 
-          echo "::group::npmrc before cleanup"
-          cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(no NPM_CONFIG_USERCONFIG)"
+          # Decode OIDC token claims so we can verify trusted publisher config
+          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org" | jq -r '.value')
+          echo "::group::OIDC token claims (for trusted publisher matching)"
+          echo "$OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{
+            iss, sub, aud, repository, repository_owner,
+            workflow_ref, job_workflow_ref, environment, ref, event_name
+          }'
           echo "::endgroup::"
 
           # Remove the _authToken line that setup-node created.
-          # With an empty NODE_AUTH_TOKEN it resolves to "" which is falsy,
-          # causing npm to throw ENEEDAUTH before OIDC can override it.
-          # Deleting it lets OIDC set its own token cleanly.
+          # It interferes with OIDC — npm sees it and skips OIDC token override.
           npm config delete "//registry.npmjs.org/:_authToken" 2>/dev/null || true
           npm config delete "always-auth" 2>/dev/null || true
-
-          echo "::group::npmrc after cleanup"
-          cat "$NPM_CONFIG_USERCONFIG" 2>/dev/null || echo "(no NPM_CONFIG_USERCONFIG)"
-          npm config list
-          echo "::endgroup::"
 
       - name: Publish npm
         if: steps.version-check.outputs.skip != 'true'
