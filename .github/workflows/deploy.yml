@@ -41,6 +41,8 @@ jobs:
       deploy-aip: ${{ steps.plan.outputs.deploy-aip }}
       deploy-aip-otel-exporter: ${{ steps.plan.outputs.deploy-aip-otel-exporter }}
       deploy-mnemom-types: ${{ steps.plan.outputs.deploy-mnemom-types }}
+      deploy-mnemom-reputation-sdk: ${{ steps.plan.outputs.deploy-mnemom-reputation-sdk }}
+      deploy-mnemom-risk-sdk: ${{ steps.plan.outputs.deploy-mnemom-risk-sdk }}
       promote: ${{ steps.plan.outputs.promote }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
@@ -95,6 +97,8 @@ jobs:
             set_deploy "aip"
             set_deploy "aip-otel-exporter"
             set_deploy "mnemom-types"
+            set_deploy "mnemom-reputation-sdk"
+            set_deploy "mnemom-risk-sdk"
           else
             # Handle comma-separated list or single repo from dispatch
             # Note: unknown repo names are accepted here by design — they simply
@@ -102,6 +106,11 @@ jobs:
             for r in $(echo "$REPO" | tr ',' ' '); do
               r=$(normalize "$(echo "$r" | xargs)")
               set_deploy "$r"
+              # Also deploy client SDK when the parent repo is deployed
+              case "$r" in
+                mnemom-reputation) set_deploy "mnemom-reputation-sdk" ;;
+                mnemom-risk) set_deploy "mnemom-risk-sdk" ;;
+              esac
             done
           fi
 
@@ -364,6 +373,48 @@ jobs:
       access: restricted
     secrets: inherit
 
+  prod-reputation-sdk:
+    name: "prod / reputation-sdk (publish)"
+    needs: [plan, staging-complete]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-reputation-sdk == 'true' &&
+      needs.plan.outputs.promote == 'true' &&
+      !contains(needs.*.result, 'failure')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/mnemom-reputation
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: client/typescript
+      publish-pypi: true
+      pypi-directory: client/python
+      pypi-method: twine
+    secrets: inherit
+
+  prod-risk-sdk:
+    name: "prod / risk-sdk (publish)"
+    needs: [plan, staging-complete]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-risk-sdk == 'true' &&
+      needs.plan.outputs.promote == 'true' &&
+      !contains(needs.*.result, 'failure')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/mnemom-risk
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: client/typescript
+      publish-pypi: true
+      pypi-directory: client/python
+      pypi-method: twine
+    secrets: inherit
+
   # ─────────────────────────────────────────────
   # Production Tier 1 — Services (after packages)
   # ─────────────────────────────────────────────
@@ -428,8 +479,8 @@ jobs:
 
   prod-reputation:
     name: "prod / reputation"
-    # no @mnemom/* package deps
-    needs: [plan, staging-complete]
+    # SDK published first so version matches the API the Worker serves
+    needs: [plan, staging-complete, prod-reputation-sdk]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
@@ -446,8 +497,8 @@ jobs:
 
   prod-risk:
     name: "prod / risk"
-    # deps: @mnemom/types (npm)
-    needs: [plan, staging-complete, prod-types]
+    # deps: @mnemom/types (npm), SDK published first
+    needs: [plan, staging-complete, prod-types, prod-risk-sdk]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-risk == 'true' &&
@@ -541,7 +592,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always()
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
       - name: Results
@@ -563,6 +614,8 @@ jobs:
             echo "| aip-otel-exporter | ${{ needs.prod-otel.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| policy-engine | ${{ needs.prod-policy-engine.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| fault-lines | ${{ needs.prod-fault-lines.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| reputation-sdk | ${{ needs.prod-reputation-sdk.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| risk-sdk | ${{ needs.prod-risk-sdk.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| gateway | ${{ needs.prod-gateway.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| observer | ${{ needs.prod-observer.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| api | ${{ needs.prod-api.result }} |" >> "$GITHUB_STEP_SUMMARY"
