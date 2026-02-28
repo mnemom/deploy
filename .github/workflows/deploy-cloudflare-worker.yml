@@ -61,6 +61,9 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ inputs.cache-dependency-path }}
 
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_READ_TOKEN }}" >> .npmrc
+
       - name: Pre-install
         if: inputs.pre-install-command != ''
         run: ${{ inputs.pre-install-command }}
