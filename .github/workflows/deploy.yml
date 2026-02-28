@@ -19,7 +19,7 @@ on:
           - production
 
 concurrency:
-  group: deploy-${{ github.event.client_payload.repo || inputs.repos || 'manual' }}
+  group: deploy-${{ github.event.client_payload.repo || inputs.repos || 'manual' }}-${{ github.event.client_payload.environment || inputs.environment || 'staging' }}
   cancel-in-progress: false
 
 jobs:
