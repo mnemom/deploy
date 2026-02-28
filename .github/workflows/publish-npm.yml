@@ -83,7 +83,13 @@ jobs:
       - name: Build
         if: steps.version-check.outputs.skip != 'true'
         working-directory: ${{ inputs.npm-directory }}
-        run: npm ci && npm run build
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run build
 
       - name: Clear read token for OIDC publish
         if: steps.version-check.outputs.skip != 'true'
