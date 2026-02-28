@@ -357,7 +357,9 @@ jobs:
 
   prod-gateway:
     name: "prod / gateway"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/agent-integrity-protocol, @mnemom/aip-otel-exporter (npm)
+    # policy-engine is file: link, built from source via pre-install-command
+    needs: [plan, staging-complete, prod-aip, prod-otel]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
@@ -376,7 +378,9 @@ jobs:
 
   prod-observer:
     name: "prod / observer"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/agent-alignment-protocol, @mnemom/aip-otel-exporter (npm)
+    # policy-engine is file: link, built from source via pre-install-command
+    needs: [plan, staging-complete, prod-aap, prod-otel]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
@@ -394,7 +398,8 @@ jobs:
 
   prod-api:
     name: "prod / api"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/policy-engine, @mnemom/fault-lines, @mnemom/aap, @mnemom/aip (all npm)
+    needs: [plan, staging-complete, prod-policy-engine, prod-fault-lines, prod-aap, prod-aip]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-api == 'true' &&
@@ -410,7 +415,8 @@ jobs:
 
   prod-reputation:
     name: "prod / reputation"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # no @mnemom/* package deps
+    needs: [plan, staging-complete]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
@@ -427,7 +433,8 @@ jobs:
 
   prod-risk:
     name: "prod / risk"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/types (npm)
+    needs: [plan, staging-complete, prod-types]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-risk == 'true' &&
@@ -444,7 +451,8 @@ jobs:
 
   prod-prover:
     name: "prod / prover"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # pure Rust — no npm package deps
+    needs: [plan, staging-complete]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-prover == 'true' &&
@@ -462,7 +470,9 @@ jobs:
 
   prod-website:
     name: "prod / website"
-    needs: [plan, staging-complete, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover]
+    # runtime HTTP deps: api.mnemom.ai, gateway.mnemom.ai
+    # @mnemom/aap (npm) satisfied transitively via prod-api
+    needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-website == 'true' &&
@@ -477,7 +487,9 @@ jobs:
 
   prod-cli:
     name: "prod / cli (publish)"
-    needs: [plan, staging-complete, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover]
+    # runtime HTTP deps: api.mnemom.ai, gateway.mnemom.ai
+    # policy-engine is file: link, built from source
+    needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
@@ -492,7 +504,8 @@ jobs:
 
   prod-hunter:
     name: "prod / hunter"
-    needs: [plan, staging-complete, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover]
+    # runtime HTTP deps: gateway.mnemom.ai, api.mnemom.ai
+    needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
       needs.plan.outputs.deploy-hunter == 'true' &&
