@@ -117,228 +117,78 @@ jobs:
     name: "staging / gateway"
     needs: plan
     if: needs.plan.outputs.deploy-smoltbot == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: gateway/package-lock.json
-
-      - name: Build policy-engine
-        working-directory: shared/policy-engine
-        run: npm ci && npm run build
-
-      - run: npm ci
-        working-directory: gateway
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: gateway
-          command: deploy --env staging
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+      working-directory: gateway
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      cache-dependency-path: gateway/package-lock.json
+      health-check-url: https://gateway-staging.mnemom.ai/health
+    secrets: inherit
 
   staging-observer:
     name: "staging / observer"
     needs: plan
     if: needs.plan.outputs.deploy-smoltbot == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: observer/package-lock.json
-
-      - name: Build policy-engine
-        working-directory: shared/policy-engine
-        run: npm ci && npm run build
-
-      - run: npm ci
-        working-directory: observer
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: observer
-          command: deploy --env staging
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+      working-directory: observer
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      cache-dependency-path: observer/package-lock.json
+    secrets: inherit
 
   staging-api:
     name: "staging / api"
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-api == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-api
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Fetch shared packages (policy-engine, fault-lines)
-        run: git clone --depth 1 --branch main https://github.com/mnemom/smoltbot.git ../smoltbot
-        env:
-          GIT_TERMINAL_PROMPT: "0"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: package-lock.json
-
-      - run: npm ci
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env staging
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/mnemom-api
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+      health-check-url: https://api-staging.mnemom.ai/health
+    secrets: inherit
 
   staging-reputation:
     name: "staging / reputation"
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-reputation == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-reputation
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - run: npm install
-        working-directory: server
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
-          command: deploy --env staging
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/mnemom-reputation
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+      working-directory: server
+      cache-dependency-path: server/package-lock.json
+    secrets: inherit
 
   staging-risk:
     name: "staging / risk"
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-risk == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-risk
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
-
-      - run: npm ci
-        working-directory: server
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
-          command: deploy --env staging
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/mnemom-risk
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+      working-directory: server
+      cache-dependency-path: server/package-lock.json
+    secrets: inherit
 
   staging-prover:
     name: "staging / prover"
     needs: plan
     if: needs.plan.outputs.deploy-mnemom-prover == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-prover
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - run: pip install modal
-
-      - name: Deploy to Modal
-        run: modal deploy modal_app.py
-        env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    uses: ./.github/workflows/deploy-modal.yml
+    with:
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+    secrets: inherit
 
   # ─────────────────────────────────────────────
   # Staging Tier 2 — Consumers (after services)
@@ -351,50 +201,11 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-website == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: staging
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-website
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Build
-        # Website staging uses production API so we always have real data.
-        # Backend services keep their own staging DBs for migration testing.
-        run: pnpm build:client
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-      - name: Deploy
-        run: |
-          npx netlify-cli deploy \
-            --prod \
-            --no-build \
-            --dir=dist/spa \
-            --message "Staging deploy from ${{ needs.plan.outputs.source-ref || 'manual' }}"
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID_STAGING }}
+    uses: ./.github/workflows/deploy-netlify.yml
+    with:
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+    secrets: inherit
 
   # ─────────────────────────────────────────────
   # Staging Gate
@@ -441,57 +252,15 @@ jobs:
       needs.plan.outputs.deploy-mnemom-types == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-types
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-types' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check if version already published
-        id: version-check
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/types version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing v$LOCAL (npm has v$REMOTE)"
-          fi
-      - name: Build
-        if: steps.version-check.outputs.skip != 'true'
-        run: npm ci && npm run build
-      - name: Publish npm
-        if: steps.version-check.outputs.skip != 'true'
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Publish PyPI
-        run: |
-          cd python && pip install build twine && python -m build
-          twine upload dist/* --skip-existing
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/mnemom-types
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-types' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: "."
+      publish-pypi: true
+      pypi-directory: python
+      pypi-method: twine
+    secrets: inherit
 
   prod-aap:
     name: "prod / aap (publish)"
@@ -501,60 +270,14 @@ jobs:
       needs.plan.outputs.deploy-aap == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/aap
-          ref: ${{ needs.plan.outputs.source-repo == 'aap' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check if version already published
-        id: version-check
-        working-directory: typescript
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/agent-alignment-protocol version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing v$LOCAL (npm has v$REMOTE)"
-          fi
-      - name: Build
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: typescript
-        run: npm ci && npm run build
-      - name: Publish npm
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: typescript
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Publish PyPI
-        run: |
-          pip install build twine && python -m build
-          twine upload dist/* --skip-existing
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/aap
+      ref: ${{ needs.plan.outputs.source-repo == 'aap' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: typescript
+      publish-pypi: true
+      pypi-method: twine
+    secrets: inherit
 
   prod-aip:
     name: "prod / aip (publish)"
@@ -564,62 +287,18 @@ jobs:
       needs.plan.outputs.deploy-aip == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
     permissions:
       contents: read
       id-token: write
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/aip
-          ref: ${{ needs.plan.outputs.source-repo == 'aip' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check if version already published
-        id: version-check
-        working-directory: packages/typescript
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/agent-integrity-protocol version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing v$LOCAL (npm has v$REMOTE)"
-          fi
-      - name: Build
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: packages/typescript
-        run: npm ci && npm run build
-      - name: Publish npm
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: packages/typescript
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Build Python
-        run: cd packages/python && pip install build && python -m build
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: packages/python/dist/
-          skip-existing: true
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/aip
+      ref: ${{ needs.plan.outputs.source-repo == 'aip' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: packages/typescript
+      publish-pypi: true
+      pypi-directory: packages/python
+      pypi-method: gh-action
+    secrets: inherit
 
   prod-otel:
     name: "prod / aip-otel-exporter (publish)"
@@ -629,62 +308,18 @@ jobs:
       needs.plan.outputs.deploy-aip-otel-exporter == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
     permissions:
       contents: read
       id-token: write
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/aip-otel-exporter
-          ref: ${{ needs.plan.outputs.source-repo == 'aip-otel-exporter' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check if version already published
-        id: version-check
-        working-directory: packages/typescript
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/aip-otel-exporter version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing v$LOCAL (npm has v$REMOTE)"
-          fi
-      - name: Build
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: packages/typescript
-        run: npm ci && npm run build
-      - name: Publish npm
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: packages/typescript
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Build Python
-        run: cd packages/python && pip install build && python -m build
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: packages/python/dist/
-          skip-existing: true
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/aip-otel-exporter
+      ref: ${{ needs.plan.outputs.source-repo == 'aip-otel-exporter' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: packages/typescript
+      publish-pypi: true
+      pypi-directory: packages/python
+      pypi-method: gh-action
+    secrets: inherit
 
   prod-policy-engine:
     name: "prod / policy-engine (publish)"
@@ -694,46 +329,12 @@ jobs:
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - name: Check if version already published
-        id: version-check
-        working-directory: shared/policy-engine
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/policy-engine version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing v$LOCAL (npm has v$REMOTE)"
-          fi
-      - name: Build and publish
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: shared/policy-engine
-        run: npm ci && npm run build && npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: shared/policy-engine
+    secrets: inherit
 
   prod-fault-lines:
     name: "prod / fault-lines (publish)"
@@ -743,46 +344,12 @@ jobs:
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          registry-url: "https://registry.npmjs.org"
-      - name: Check if version already published
-        id: version-check
-        working-directory: shared/fault-lines
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/fault-lines version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing v$LOCAL (npm has v$REMOTE)"
-          fi
-      - name: Build and publish
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: shared/fault-lines
-        run: npm ci && npm run build && npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: shared/fault-lines
+    secrets: inherit
 
   # ─────────────────────────────────────────────
   # Production Tier 1 — Services (after packages)
@@ -790,249 +357,112 @@ jobs:
 
   prod-gateway:
     name: "prod / gateway"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/agent-integrity-protocol, @mnemom/aip-otel-exporter (npm)
+    # policy-engine is file: link, built from source via pre-install-command
+    needs: [plan, staging-complete, prod-aip, prod-otel]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: gateway/package-lock.json
-
-      - name: Build policy-engine
-        working-directory: shared/policy-engine
-        run: npm ci && npm run build
-
-      - run: npm ci
-        working-directory: gateway
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: gateway
-          command: deploy --env production
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      working-directory: gateway
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      cache-dependency-path: gateway/package-lock.json
+      health-check-url: https://gateway.mnemom.ai/health
+    secrets: inherit
 
   prod-observer:
     name: "prod / observer"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/agent-alignment-protocol, @mnemom/aip-otel-exporter (npm)
+    # policy-engine is file: link, built from source via pre-install-command
+    needs: [plan, staging-complete, prod-aap, prod-otel]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: observer/package-lock.json
-
-      - name: Build policy-engine
-        working-directory: shared/policy-engine
-        run: npm ci && npm run build
-
-      - run: npm ci
-        working-directory: observer
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: observer
-          command: deploy --env production
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      working-directory: observer
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      cache-dependency-path: observer/package-lock.json
+    secrets: inherit
 
   prod-api:
     name: "prod / api"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/policy-engine, @mnemom/fault-lines, @mnemom/aap, @mnemom/aip (all npm)
+    needs: [plan, staging-complete, prod-policy-engine, prod-fault-lines, prod-aap, prod-aip]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-api == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-api
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: package-lock.json
-
-      - run: npm ci
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env production
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/mnemom-api
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      health-check-url: https://api.mnemom.ai/health
+    secrets: inherit
 
   prod-reputation:
     name: "prod / reputation"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # no @mnemom/* package deps
+    needs: [plan, staging-complete]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-reputation
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - run: npm install
-        working-directory: server
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
-          command: deploy --env production
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/mnemom-reputation
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      working-directory: server
+      cache-dependency-path: server/package-lock.json
+    secrets: inherit
 
   prod-risk:
     name: "prod / risk"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # deps: @mnemom/types (npm)
+    needs: [plan, staging-complete, prod-types]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-risk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-risk
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
-
-      - run: npm ci
-        working-directory: server
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
-          command: deploy --env production
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
+    with:
+      repository: mnemom/mnemom-risk
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      working-directory: server
+      cache-dependency-path: server/package-lock.json
+    secrets: inherit
 
   prod-prover:
     name: "prod / prover"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
+    # pure Rust — no npm package deps
+    needs: [plan, staging-complete]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-prover == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-prover
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - run: pip install modal
-
-      - name: Deploy to Modal
-        run: modal deploy modal_app.py
-        env:
-          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
-          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    uses: ./.github/workflows/deploy-modal.yml
+    with:
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+    secrets: inherit
 
   # ─────────────────────────────────────────────
   # Production Tier 2 — Consumers (after services)
@@ -1040,149 +470,53 @@ jobs:
 
   prod-website:
     name: "prod / website"
-    needs: [plan, staging-complete, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover]
+    # runtime HTTP deps: api.mnemom.ai, gateway.mnemom.ai
+    # @mnemom/aap (npm) satisfied transitively via prod-api
+    needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-website == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/mnemom-website
-          ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build:client
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
-      - name: Deploy
-        run: |
-          npx netlify-cli deploy \
-            --prod \
-            --no-build \
-            --dir=dist/spa \
-            --message "Production deploy from ${{ needs.plan.outputs.source-ref || 'manual' }}"
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+    uses: ./.github/workflows/deploy-netlify.yml
+    with:
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      health-check-url: https://mnemom.ai
+    secrets: inherit
 
   prod-cli:
     name: "prod / cli (publish)"
-    needs: [plan, staging-complete, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover]
+    # runtime HTTP deps: api.mnemom.ai, gateway.mnemom.ai
+    # policy-engine is file: link, built from source
+    needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/smoltbot
-          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: cli/package-lock.json
-          registry-url: "https://registry.npmjs.org"
-
-      - run: npm ci
-        working-directory: cli
-
-      - name: Check if version already published
-        id: version-check
-        working-directory: cli
-        run: |
-          LOCAL=$(node -p "require('./package.json').version")
-          REMOTE=$(npm view @mnemom/smoltbot version 2>/dev/null || echo "0.0.0")
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
-          if [ "$LOCAL" = "$REMOTE" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "CLI v$LOCAL already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Publishing CLI v$LOCAL (npm has v$REMOTE)"
-          fi
-
-      - name: Build
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: cli
-        run: npm run build
-
-      - name: Publish
-        if: steps.version-check.outputs.skip != 'true'
-        working-directory: cli
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    uses: ./.github/workflows/publish-npm.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: cli
+    secrets: inherit
 
   prod-hunter:
     name: "prod / hunter"
-    needs: [plan, staging-complete, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover]
+    # runtime HTTP deps: gateway.mnemom.ai, api.mnemom.ai
+    needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
       needs.plan.outputs.deploy-hunter == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.DEPLOY_APP_ID }}
-          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          owner: mnemom
-
-      - uses: actions/checkout@v4
-        with:
-          repository: mnemom/hunter
-          ref: main
-          token: ${{ steps.app-token.outputs.token }}
-
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy to Fly.io
-        run: flyctl deploy --config fly.toml
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    uses: ./.github/workflows/deploy-fly.yml
+    with:
+      repository: mnemom/hunter
+      ref: main
+      environment: production
+    secrets: inherit
 
   # ─────────────────────────────────────────────
   # Summary

@@ -1,0 +1,52 @@
+name: Deploy Fly.io
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Repository to deploy (e.g. mnemom/hunter)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout"
+        required: true
+        type: string
+      environment:
+        description: "Target environment"
+        type: string
+        default: "production"
+      fly-config:
+        description: "Path to fly.toml"
+        type: string
+        default: "fly.toml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --config ${{ inputs.fly-config }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Health check
+        run: flyctl status --config ${{ inputs.fly-config }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
