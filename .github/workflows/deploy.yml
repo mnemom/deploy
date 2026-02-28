@@ -686,13 +686,111 @@ jobs:
           packages-dir: packages/python/dist/
           skip-existing: true
 
+  prod-policy-engine:
+    name: "prod / policy-engine (publish)"
+    needs: [plan, staging-complete]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.promote == 'true' &&
+      !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/smoltbot
+          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Check if version already published
+        id: version-check
+        working-directory: shared/policy-engine
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          REMOTE=$(npm view @mnemom/policy-engine version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "v$LOCAL already published — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Publishing v$LOCAL (npm has v$REMOTE)"
+          fi
+      - name: Build and publish
+        if: steps.version-check.outputs.skip != 'true'
+        working-directory: shared/policy-engine
+        run: npm ci && npm run build && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  prod-fault-lines:
+    name: "prod / fault-lines (publish)"
+    needs: [plan, staging-complete]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.promote == 'true' &&
+      !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - uses: actions/checkout@v4
+        with:
+          repository: mnemom/smoltbot
+          ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+          token: ${{ steps.app-token.outputs.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Check if version already published
+        id: version-check
+        working-directory: shared/fault-lines
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          REMOTE=$(npm view @mnemom/fault-lines version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+          echo "remote=$REMOTE" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL" = "$REMOTE" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "v$LOCAL already published — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Publishing v$LOCAL (npm has v$REMOTE)"
+          fi
+      - name: Build and publish
+        if: steps.version-check.outputs.skip != 'true'
+        working-directory: shared/fault-lines
+        run: npm ci && npm run build && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   # ─────────────────────────────────────────────
   # Production Tier 1 — Services (after packages)
   # ─────────────────────────────────────────────
 
   prod-gateway:
     name: "prod / gateway"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
@@ -737,7 +835,7 @@ jobs:
 
   prod-observer:
     name: "prod / observer"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
@@ -782,7 +880,7 @@ jobs:
 
   prod-api:
     name: "prod / api"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-api == 'true' &&
@@ -805,11 +903,6 @@ jobs:
           ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Fetch shared packages (policy-engine, fault-lines)
-        run: git clone --depth 1 --branch main https://github.com/mnemom/smoltbot.git ../smoltbot
-        env:
-          GIT_TERMINAL_PROMPT: "0"
-
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -826,7 +919,7 @@ jobs:
 
   prod-reputation:
     name: "prod / reputation"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
@@ -865,7 +958,7 @@ jobs:
 
   prod-risk:
     name: "prod / risk"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-risk == 'true' &&
@@ -906,7 +999,7 @@ jobs:
 
   prod-prover:
     name: "prod / prover"
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-prover == 'true' &&
@@ -1098,7 +1191,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always()
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
       - name: Results
@@ -1118,6 +1211,8 @@ jobs:
             echo "| aap | ${{ needs.prod-aap.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| aip | ${{ needs.prod-aip.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| aip-otel-exporter | ${{ needs.prod-otel.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| policy-engine | ${{ needs.prod-policy-engine.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| fault-lines | ${{ needs.prod-fault-lines.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| gateway | ${{ needs.prod-gateway.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| observer | ${{ needs.prod-observer.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| api | ${{ needs.prod-api.result }} |" >> "$GITHUB_STEP_SUMMARY"
