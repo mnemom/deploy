@@ -1,0 +1,124 @@
+name: Dispatch Publish (to source repo)
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Source repository (e.g. mnemom/mnemom-reputation)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref in source repo (used for logging only)"
+        required: false
+        type: string
+        default: "main"
+      npm-directory:
+        description: "npm-directory to pass through to source repo's publish.yml"
+        required: false
+        type: string
+        default: ""
+      access:
+        description: "npm publish access level to pass through"
+        required: false
+        type: string
+        default: ""
+      publish-pypi:
+        description: "Pass through to source repo (not used by dispatch, source repo knows its own config)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  dispatch:
+    name: "Dispatch → ${{ inputs.repository }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Create GitHub App token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - name: Generate dispatch ID
+        id: dispatch
+        run: echo "id=dispatch-$(date +%s)-$RANDOM" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger source repo workflow
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          REPO="${{ inputs.repository }}"
+          DISPATCH_ID="${{ steps.dispatch.outputs.id }}"
+          echo "Dispatching to $REPO with dispatch-id=$DISPATCH_ID"
+
+          # Build inputs JSON — only include non-empty values
+          INPUTS="{\"dispatch-id\":\"$DISPATCH_ID\""
+          if [ -n "${{ inputs.npm-directory }}" ]; then
+            INPUTS="$INPUTS,\"npm-directory\":\"${{ inputs.npm-directory }}\""
+          fi
+          if [ -n "${{ inputs.access }}" ]; then
+            INPUTS="$INPUTS,\"access\":\"${{ inputs.access }}\""
+          fi
+          INPUTS="$INPUTS}"
+
+          gh workflow run publish.yml \
+            --repo "$REPO" \
+            --ref main \
+            --json <<< "$INPUTS"
+
+      - name: Wait for run to appear
+        id: find-run
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          REPO="${{ inputs.repository }}"
+          DISPATCH_ID="${{ steps.dispatch.outputs.id }}"
+          echo "Waiting for run with dispatch-id=$DISPATCH_ID in $REPO..."
+
+          # Give GitHub a moment to create the run
+          sleep 5
+
+          for i in $(seq 1 30); do
+            # List recent workflow runs for publish.yml
+            RUNS=$(gh run list \
+              --repo "$REPO" \
+              --workflow publish.yml \
+              --limit 10 \
+              --json databaseId,status,createdAt)
+
+            # For each recent run, check if its dispatch-id input matches
+            for RUN_ID in $(echo "$RUNS" | jq -r '.[].databaseId'); do
+              FOUND_ID=$(gh api \
+                "repos/$REPO/actions/runs/$RUN_ID" \
+                --jq '.inputs["dispatch-id"] // ""' 2>/dev/null || echo "")
+
+              if [ "$FOUND_ID" = "$DISPATCH_ID" ]; then
+                echo "Found matching run: $RUN_ID"
+                echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
+
+            echo "Attempt $i/30: run not found yet, waiting 10s..."
+            sleep 10
+          done
+
+          echo "::error::Timed out waiting for dispatched run to appear"
+          exit 1
+
+      - name: Wait for run to complete
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          REPO="${{ inputs.repository }}"
+          RUN_ID="${{ steps.find-run.outputs.run-id }}"
+          echo "Watching run $RUN_ID in $REPO..."
+          echo "  → https://github.com/$REPO/actions/runs/$RUN_ID"
+
+          gh run watch "$RUN_ID" \
+            --repo "$REPO" \
+            --exit-status
