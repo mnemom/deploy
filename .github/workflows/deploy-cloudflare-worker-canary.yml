@@ -1,6 +1,64 @@
 name: Deploy Cloudflare Worker (Canary)
 
 on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Repository to deploy (e.g. mnemom/mnemom-risk)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout"
+        required: true
+        type: string
+        default: "main"
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      working-directory:
+        description: "Directory containing wrangler.toml"
+        type: string
+        default: "."
+      node-version:
+        description: "Node.js version"
+        type: string
+        default: "20"
+      pre-install-command:
+        description: "Pre-install command"
+        type: string
+        default: ""
+      cache-dependency-path:
+        description: "Path to package-lock.json"
+        type: string
+        default: "package-lock.json"
+      health-check-url:
+        description: "URL to curl after deploy"
+        type: string
+        default: ""
+      script-name:
+        description: "Cloudflare Worker script name"
+        required: true
+        type: string
+      service-name:
+        description: "Service name matching rollback.yml"
+        required: true
+        type: string
+      canary-percentage:
+        description: "% traffic for new version"
+        type: number
+        default: 10
+      canary-wait-seconds:
+        description: "Seconds to wait before error check"
+        type: number
+        default: 60
+      error-threshold:
+        description: "Max error rate (0-1)"
+        type: number
+        default: 0.05
   workflow_call:
     inputs:
       repository:
