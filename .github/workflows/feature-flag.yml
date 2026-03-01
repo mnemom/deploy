@@ -60,6 +60,7 @@ jobs:
         run: |
           npx wrangler kv key put \
             --namespace-id "${{ steps.kv.outputs.namespace-id }}" \
+            --remote \
             "${{ inputs.flag-name }}" \
             '${{ inputs.flag-value }}'
           echo "Set \`${{ inputs.flag-name }}\` = \`${{ inputs.flag-value }}\` in ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
@@ -72,6 +73,7 @@ jobs:
         run: |
           npx wrangler kv key delete \
             --namespace-id "${{ steps.kv.outputs.namespace-id }}" \
+            --remote \
             "${{ inputs.flag-name }}" \
             --force
           echo "Deleted \`${{ inputs.flag-name }}\` from ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
@@ -85,7 +87,8 @@ jobs:
           echo "## Feature Flags (${{ inputs.environment }})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           npx wrangler kv key list \
-            --namespace-id "${{ steps.kv.outputs.namespace-id }}" | tee flags.json
+            --namespace-id "${{ steps.kv.outputs.namespace-id }}" \
+            --remote | tee flags.json
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
           cat flags.json >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
