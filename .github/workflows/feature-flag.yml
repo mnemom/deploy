@@ -71,11 +71,10 @@ jobs:
       - name: Delete flag
         if: inputs.action == 'delete'
         run: |
-          npx wrangler kv key delete \
+          echo "y" | npx wrangler kv key delete \
             --namespace-id "${{ steps.kv.outputs.namespace-id }}" \
             --remote \
-            "${{ inputs.flag-name }}" \
-            --force
+            "${{ inputs.flag-name }}"
           echo "Deleted \`${{ inputs.flag-name }}\` from ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
