@@ -43,7 +43,6 @@ jobs:
       deploy-mnemom-types: ${{ steps.plan.outputs.deploy-mnemom-types }}
       deploy-mnemom-reputation-sdk: ${{ steps.plan.outputs.deploy-mnemom-reputation-sdk }}
       deploy-mnemom-risk-sdk: ${{ steps.plan.outputs.deploy-mnemom-risk-sdk }}
-      deploy-fault-lines: ${{ steps.plan.outputs.deploy-fault-lines }}
       promote: ${{ steps.plan.outputs.promote }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
@@ -100,7 +99,6 @@ jobs:
             set_deploy "mnemom-types"
             set_deploy "mnemom-reputation-sdk"
             set_deploy "mnemom-risk-sdk"
-            set_deploy "fault-lines"
           else
             # Handle comma-separated list or single repo from dispatch
             # Note: unknown repo names are accepted here by design — they simply
@@ -321,20 +319,6 @@ jobs:
       npm-directory: shared/policy-engine
     secrets: inherit
 
-  prod-fault-lines:
-    name: "prod / fault-lines (publish)"
-    needs: [plan, staging-complete]
-    if: >-
-      always() &&
-      needs.plan.outputs.deploy-fault-lines == 'true' &&
-      needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
-    uses: ./.github/workflows/dispatch-publish.yml
-    with:
-      repository: mnemom/fault-lines
-      access: restricted
-    secrets: inherit
-
   prod-reputation-sdk:
     name: "prod / reputation-sdk (publish)"
     needs: [plan, staging-complete]
@@ -408,8 +392,8 @@ jobs:
 
   prod-api:
     name: "prod / api"
-    # deps: @mnemom/policy-engine, @mnemom/fault-lines, @mnemom/aap, @mnemom/aip (all npm)
-    needs: [plan, staging-complete, prod-policy-engine, prod-fault-lines, prod-aap, prod-aip]
+    # deps: @mnemom/policy-engine, @mnemom/aap, @mnemom/aip (all npm)
+    needs: [plan, staging-complete, prod-policy-engine, prod-aap, prod-aip]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-api == 'true' &&
@@ -534,7 +518,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always()
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-fault-lines, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
       - name: Results
@@ -555,7 +539,6 @@ jobs:
             echo "| aip | ${{ needs.prod-aip.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| aip-otel-exporter | ${{ needs.prod-otel.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| policy-engine | ${{ needs.prod-policy-engine.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| fault-lines | ${{ needs.prod-fault-lines.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| reputation-sdk | ${{ needs.prod-reputation-sdk.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| risk-sdk | ${{ needs.prod-risk-sdk.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| gateway | ${{ needs.prod-gateway.result }} |" >> "$GITHUB_STEP_SUMMARY"

@@ -131,7 +131,12 @@ jobs:
       - name: Publish npm
         if: steps.version-check.outputs.skip != 'true'
         working-directory: ${{ inputs.npm-directory }}
-        run: npm publish --provenance --access ${{ inputs.access }} --loglevel verbose
+        run: |
+          ARGS="--access ${{ inputs.access }} --loglevel verbose"
+          if [ "${{ inputs.access }}" != "restricted" ]; then
+            ARGS="--provenance $ARGS"
+          fi
+          npm publish $ARGS
 
       - name: Build Python
         if: inputs.publish-pypi
