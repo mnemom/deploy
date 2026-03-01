@@ -43,6 +43,7 @@ jobs:
       deploy-mnemom-types: ${{ steps.plan.outputs.deploy-mnemom-types }}
       deploy-mnemom-reputation-sdk: ${{ steps.plan.outputs.deploy-mnemom-reputation-sdk }}
       deploy-mnemom-risk-sdk: ${{ steps.plan.outputs.deploy-mnemom-risk-sdk }}
+      deploy-fault-lines: ${{ steps.plan.outputs.deploy-fault-lines }}
       promote: ${{ steps.plan.outputs.promote }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
@@ -99,6 +100,7 @@ jobs:
             set_deploy "mnemom-types"
             set_deploy "mnemom-reputation-sdk"
             set_deploy "mnemom-risk-sdk"
+            set_deploy "fault-lines"
           else
             # Handle comma-separated list or single repo from dispatch
             # Note: unknown repo names are accepted here by design — they simply
@@ -261,17 +263,9 @@ jobs:
       needs.plan.outputs.deploy-mnemom-types == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-types
-      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-types' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: "."
-      publish-pypi: true
-      pypi-directory: python
-      pypi-method: twine
     secrets: inherit
 
   prod-aap:
@@ -282,16 +276,9 @@ jobs:
       needs.plan.outputs.deploy-aap == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aap
-      ref: ${{ needs.plan.outputs.source-repo == 'aap' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: typescript
-      publish-pypi: true
-      pypi-method: twine
     secrets: inherit
 
   prod-aip:
@@ -302,17 +289,9 @@ jobs:
       needs.plan.outputs.deploy-aip == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aip
-      ref: ${{ needs.plan.outputs.source-repo == 'aip' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: packages/typescript
-      publish-pypi: true
-      pypi-directory: packages/python
-      pypi-method: gh-action
     secrets: inherit
 
   prod-otel:
@@ -323,17 +302,9 @@ jobs:
       needs.plan.outputs.deploy-aip-otel-exporter == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aip-otel-exporter
-      ref: ${{ needs.plan.outputs.source-repo == 'aip-otel-exporter' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: packages/typescript
-      publish-pypi: true
-      pypi-directory: packages/python
-      pypi-method: gh-action
     secrets: inherit
 
   prod-policy-engine:
@@ -344,13 +315,9 @@ jobs:
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       npm-directory: shared/policy-engine
     secrets: inherit
 
@@ -359,17 +326,12 @@ jobs:
     needs: [plan, staging-complete]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-fault-lines == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: shared/fault-lines
+      repository: mnemom/fault-lines
       access: restricted
     secrets: inherit
 
@@ -381,17 +343,9 @@ jobs:
       needs.plan.outputs.deploy-mnemom-reputation-sdk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-reputation
-      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: client/typescript
-      publish-pypi: true
-      pypi-directory: client/python
-      pypi-method: twine
     secrets: inherit
 
   prod-risk-sdk:
@@ -402,17 +356,9 @@ jobs:
       needs.plan.outputs.deploy-mnemom-risk-sdk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-risk
-      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
-      npm-directory: client/typescript
-      publish-pypi: true
-      pypi-directory: client/python
-      pypi-method: twine
     secrets: inherit
 
   # ─────────────────────────────────────────────
@@ -559,13 +505,9 @@ jobs:
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure')
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/publish-npm.yml
+    uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       npm-directory: cli
     secrets: inherit
 

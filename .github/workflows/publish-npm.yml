@@ -4,13 +4,15 @@ on:
   workflow_call:
     inputs:
       repository:
-        description: "Repository to publish from"
-        required: true
+        description: "Repository to publish from (empty = caller's repo, for source-repo dispatch)"
+        required: false
         type: string
+        default: ""
       ref:
-        description: "Git ref to checkout"
-        required: true
+        description: "Git ref to checkout (only used when repository is set)"
+        required: false
         type: string
+        default: ""
       npm-directory:
         description: "Directory containing package.json for npm"
         required: true
@@ -27,10 +29,10 @@ on:
         description: "Directory containing Python package (setup.py/pyproject.toml)"
         type: string
         default: "."
-      pypi-method:
-        description: "PyPI publish method: twine or gh-action"
+      dispatch-id:
+        description: "Correlation ID from dispatch-publish (for logging)"
         type: string
-        default: "twine"
+        default: ""
 
 jobs:
   publish:
@@ -38,7 +40,13 @@ jobs:
     timeout-minutes: 15
     environment: production
     steps:
+      - name: Log dispatch correlation
+        if: inputs.dispatch-id != ''
+        run: echo "dispatch-id=${{ inputs.dispatch-id }}"
+
+      # Cross-repo checkout (legacy: called from deploy repo)
       - uses: actions/create-github-app-token@v1
+        if: inputs.repository != ''
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOY_APP_ID }}
@@ -46,10 +54,15 @@ jobs:
           owner: mnemom
 
       - uses: actions/checkout@v4
+        if: inputs.repository != ''
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           token: ${{ steps.app-token.outputs.token }}
+
+      # Default checkout (new: called from source repo via workflow_call)
+      - uses: actions/checkout@v4
+        if: inputs.repository == ''
 
       - uses: actions/setup-node@v4
         with:
@@ -123,18 +136,10 @@ jobs:
       - name: Build Python
         if: inputs.publish-pypi
         working-directory: ${{ inputs.pypi-directory }}
-        run: pip install build twine && python -m build
+        run: pip install build && python -m build
 
-      - name: Publish PyPI (twine)
-        if: inputs.publish-pypi && inputs.pypi-method == 'twine'
-        working-directory: ${{ inputs.pypi-directory }}
-        run: twine upload dist/* --skip-existing
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-
-      - name: Publish PyPI (trusted publisher)
-        if: inputs.publish-pypi && inputs.pypi-method == 'gh-action'
+      - name: Publish PyPI
+        if: inputs.publish-pypi
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: ${{ inputs.pypi-directory }}/dist/
