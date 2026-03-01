@@ -1,0 +1,286 @@
+name: Deploy Cloudflare Worker (Canary)
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Repository to deploy (e.g. mnemom/mnemom-api)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout"
+        required: true
+        type: string
+      environment:
+        description: "Target environment (staging or production)"
+        required: true
+        type: string
+      working-directory:
+        description: "Directory containing wrangler.toml"
+        type: string
+        default: "."
+      node-version:
+        description: "Node.js version"
+        type: string
+        default: "20"
+      pre-install-command:
+        description: "Command to run before npm ci (e.g. build shared deps)"
+        type: string
+        default: ""
+      cache-dependency-path:
+        description: "Path to package-lock.json for npm cache"
+        type: string
+        default: "package-lock.json"
+      health-check-url:
+        description: "URL to curl after deploy (expects HTTP 200)"
+        type: string
+        default: ""
+      script-name:
+        description: "Cloudflare Worker script name (e.g. smoltbot-gateway)"
+        required: true
+        type: string
+      service-name:
+        description: "Service name matching rollback.yml choices (e.g. gateway)"
+        required: true
+        type: string
+      canary-percentage:
+        description: "Percentage of traffic for the new version during canary"
+        type: number
+        default: 10
+      canary-wait-seconds:
+        description: "Seconds to wait before checking error rate"
+        type: number
+        default: 60
+      error-threshold:
+        description: "Max error rate (0-1) before failing canary"
+        type: number
+        default: 0.05
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      # ── Record current deployment ──
+
+      - name: Record previous deployment
+        id: previous
+        run: |
+          RESPONSE=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers/scripts/${{ inputs.script-name }}/deployments" \
+            2>/dev/null) || true
+
+          if [ -z "$RESPONSE" ]; then
+            echo "No existing deployment found — first deploy"
+            echo "version-id=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Extract the version ID that currently has the most traffic
+          PREV_VERSION=$(echo "$RESPONSE" | node -e "
+            const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+            const versions = data.result?.versions || [];
+            if (versions.length === 0) { console.log(''); process.exit(0); }
+            // Find the version with the highest percentage
+            const top = versions.reduce((a, b) => (b.percentage || 0) > (a.percentage || 0) ? b : a);
+            console.log(top.version_id || '');
+          ")
+
+          echo "Previous version: $PREV_VERSION"
+          echo "version-id=$PREV_VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── Standard deploy steps (from deploy-cloudflare-worker.yml) ──
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.cache-dependency-path }}
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_READ_TOKEN }}" >> .npmrc
+
+      - name: Pre-install
+        if: inputs.pre-install-command != ''
+        run: ${{ inputs.pre-install-command }}
+
+      - run: npm ci
+        working-directory: ${{ inputs.working-directory }}
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: ${{ inputs.working-directory }}
+          command: deploy --env ${{ inputs.environment }}
+
+      # ── Canary: split traffic ──
+
+      - name: Get new version ID
+        id: new-version
+        run: |
+          RESPONSE=$(curl -sf \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers/scripts/${{ inputs.script-name }}/versions?per_page=1")
+
+          NEW_VERSION=$(echo "$RESPONSE" | node -e "
+            const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+            const items = data.result?.items || data.result || [];
+            const latest = Array.isArray(items) ? items[0] : null;
+            console.log(latest?.id || '');
+          ")
+
+          if [ -z "$NEW_VERSION" ]; then
+            echo "::error::Could not determine new version ID"
+            exit 1
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "version-id=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Split traffic (canary)
+        if: steps.previous.outputs.version-id != ''
+        run: |
+          NEW_PCT=${{ inputs.canary-percentage }}
+          OLD_PCT=$((100 - NEW_PCT))
+
+          echo "Splitting traffic: new@${NEW_PCT}% / previous@${OLD_PCT}%"
+
+          RESPONSE=$(curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers/scripts/${{ inputs.script-name }}/deployments" \
+            -d "{
+              \"strategy\": \"percentage\",
+              \"versions\": [
+                { \"version_id\": \"${{ steps.new-version.outputs.version-id }}\", \"percentage\": ${NEW_PCT} },
+                { \"version_id\": \"${{ steps.previous.outputs.version-id }}\", \"percentage\": ${OLD_PCT} }
+              ]
+            }")
+
+          echo "$RESPONSE" | node -e "
+            const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+            if (!data.success) {
+              console.error('Traffic split failed:', JSON.stringify(data.errors));
+              process.exit(1);
+            }
+            console.log('Traffic split successful');
+          "
+
+      # ── Health check ──
+
+      - name: Health check
+        if: inputs.health-check-url != ''
+        run: |
+          for i in 1 2 3; do
+            HTTP_STATUS=$(curl -sf -o /dev/null -w '%{http_code}' "${{ inputs.health-check-url }}" 2>/dev/null || true)
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Health check passed (${{ inputs.health-check-url }})"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $HTTP_STATUS — retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Health check failed after 3 attempts (${{ inputs.health-check-url }})"
+          exit 1
+
+      # ── Canary: observe error rate ──
+
+      - name: Checkout deploy scripts
+        uses: actions/checkout@v4
+        with:
+          repository: mnemom/deploy
+          token: ${{ steps.app-token.outputs.token }}
+          sparse-checkout: scripts
+          path: _deploy
+
+      - name: Wait for canary observation window
+        run: |
+          echo "Waiting ${{ inputs.canary-wait-seconds }}s for canary traffic..."
+          sleep ${{ inputs.canary-wait-seconds }}
+
+      - name: Check canary error rate
+        id: canary-check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SCRIPT_NAME: ${{ inputs.script-name }}
+          OBSERVATION_SECONDS: ${{ inputs.canary-wait-seconds }}
+          ERROR_THRESHOLD: ${{ inputs.error-threshold }}
+        run: node _deploy/scripts/check-error-rate.js
+
+      # ── Canary: promote or rollback ──
+
+      - name: Promote to 100%
+        if: steps.canary-check.outputs.canary-passed == 'true'
+        run: |
+          echo "Canary passed — promoting new version to 100%"
+
+          RESPONSE=$(curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers/scripts/${{ inputs.script-name }}/deployments" \
+            -d "{
+              \"strategy\": \"percentage\",
+              \"versions\": [
+                { \"version_id\": \"${{ steps.new-version.outputs.version-id }}\", \"percentage\": 100 }
+              ]
+            }")
+
+          echo "$RESPONSE" | node -e "
+            const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+            if (!data.success) {
+              console.error('Promotion failed:', JSON.stringify(data.errors));
+              process.exit(1);
+            }
+            console.log('Promoted to 100%');
+          "
+
+      - name: Rollback canary
+        if: steps.canary-check.outputs.canary-passed == 'false' && steps.previous.outputs.version-id != ''
+        run: |
+          echo "::error::Canary failed — rolling back to previous version"
+
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/workers/scripts/${{ inputs.script-name }}/deployments" \
+            -d "{
+              \"strategy\": \"percentage\",
+              \"versions\": [
+                { \"version_id\": \"${{ steps.previous.outputs.version-id }}\", \"percentage\": 100 }
+              ]
+            }"
+
+          exit 1
+
+      # ── Post-promotion monitoring ──
+
+      - name: Post-deploy monitoring
+        if: steps.canary-check.outputs.canary-passed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SCRIPT_NAME: ${{ inputs.script-name }}
+          SERVICE_NAME: ${{ inputs.service-name }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          ERROR_THRESHOLD: ${{ inputs.error-threshold }}
+          MONITOR_DURATION_SECONDS: "300"
+          POLL_INTERVAL_SECONDS: "30"
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: node _deploy/scripts/post-deploy-monitor.js
