@@ -250,6 +250,43 @@ jobs:
           echo "Staging deployment failed — production will not proceed"
           exit 1
 
+  # ─────────────────────────────────────────────
+  # Confidence Score (informational, does not gate production)
+  # ─────────────────────────────────────────────
+
+  confidence:
+    name: "Confidence Score"
+    needs: [plan, staging-complete]
+    if: >-
+      always() &&
+      needs.plan.outputs.promote == 'true' &&
+      needs.staging-complete.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - name: Compute confidence score
+        env:
+          SOURCE_REPO: ${{ needs.plan.outputs.source-repo }}
+          SOURCE_REF: ${{ needs.plan.outputs.source-ref }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          DEPLOY_FLAGS: >-
+            {
+              "smoltbot": ${{ needs.plan.outputs.deploy-smoltbot == 'true' }},
+              "mnemom-api": ${{ needs.plan.outputs.deploy-mnemom-api == 'true' }},
+              "mnemom-reputation": ${{ needs.plan.outputs.deploy-mnemom-reputation == 'true' }},
+              "mnemom-risk": ${{ needs.plan.outputs.deploy-mnemom-risk == 'true' }},
+              "mnemom-website": ${{ needs.plan.outputs.deploy-mnemom-website == 'true' }},
+              "mnemom-prover": ${{ needs.plan.outputs.deploy-mnemom-prover == 'true' }},
+              "hunter": ${{ needs.plan.outputs.deploy-hunter == 'true' }}
+            }
+        run: node scripts/confidence-score.js
+
   # ═══════════════════════════════════════════════
   # PRODUCTION PHASE (requires approval)
   # ═══════════════════════════════════════════════
@@ -527,7 +564,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always()
-    needs: [plan, staging-complete, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, staging-complete, confidence, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
       - name: Results
