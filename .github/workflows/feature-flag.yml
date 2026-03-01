@@ -1,0 +1,94 @@
+name: Feature Flag
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - set
+          - delete
+          - list
+      flag-name:
+        description: "Flag name (e.g. new-scoring-model)"
+        required: false
+        type: string
+      flag-value:
+        description: "JSON value for the flag (used with 'set')"
+        required: false
+        type: string
+        default: '"true"'
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  manage-flag:
+    name: "${{ inputs.action }} flag (${{ inputs.environment }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ "${{ inputs.action }}" != "list" ] && [ -z "${{ inputs.flag-name }}" ]; then
+            echo "::error::flag-name is required for '${{ inputs.action }}' action"
+            exit 1
+          fi
+
+      - name: Determine KV namespace ID
+        id: kv
+        run: |
+          if [ "${{ inputs.environment }}" = "staging" ]; then
+            echo "namespace-id=${{ secrets.FEATURE_FLAGS_KV_STAGING_ID }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "namespace-id=${{ secrets.FEATURE_FLAGS_KV_PRODUCTION_ID }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set flag
+        if: inputs.action == 'set'
+        run: |
+          npx wrangler kv key put \
+            --namespace-id "${{ steps.kv.outputs.namespace-id }}" \
+            "${{ inputs.flag-name }}" \
+            '${{ inputs.flag-value }}'
+          echo "Set \`${{ inputs.flag-name }}\` = \`${{ inputs.flag-value }}\` in ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Delete flag
+        if: inputs.action == 'delete'
+        run: |
+          npx wrangler kv key delete \
+            --namespace-id "${{ steps.kv.outputs.namespace-id }}" \
+            "${{ inputs.flag-name }}" \
+            --force
+          echo "Deleted \`${{ inputs.flag-name }}\` from ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: List flags
+        if: inputs.action == 'list'
+        run: |
+          echo "## Feature Flags (${{ inputs.environment }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          npx wrangler kv key list \
+            --namespace-id "${{ steps.kv.outputs.namespace-id }}" | tee flags.json
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat flags.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
