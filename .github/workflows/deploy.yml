@@ -522,7 +522,7 @@ jobs:
     with:
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
       environment: production
-      health-check-url: https://mnemom.ai
+      health-check-url: https://www.mnemom.ai
     secrets: inherit
 
   prod-cli:
