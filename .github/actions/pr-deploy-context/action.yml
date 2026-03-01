@@ -6,7 +6,7 @@ inputs:
     description: "Repository name (e.g. smoltbot, mnemom-api)"
     required: true
   github-token:
-    description: "GitHub token with PR write access"
+    description: "GitHub token with PR write access (use github.token, not app token)"
     required: true
 
 runs:
