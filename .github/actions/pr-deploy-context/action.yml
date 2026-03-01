@@ -18,10 +18,19 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         REPO_NAME: ${{ inputs.repo-name }}
       run: |
+        set +e
         # Get changed files from the PR
         CHANGED_FILES=$(gh pr view "${{ github.event.pull_request.number }}" \
           --repo "${{ github.repository }}" \
-          --json files --jq '.files[].path')
+          --json files --jq '.files[].path' 2>&1)
+        RC=$?
+        set -e
+        if [ $RC -ne 0 ]; then
+          echo "::warning::Failed to get PR files (exit $RC): $CHANGED_FILES"
+          echo "Token type check:"
+          gh auth status 2>&1 || true
+          exit 0
+        fi
 
         if [ -z "$CHANGED_FILES" ]; then
           echo "No changed files found, skipping"
