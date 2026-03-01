@@ -50,14 +50,16 @@ jobs:
       - name: Health check
         if: inputs.health-check-url != ''
         run: |
-          for i in 1 2 3; do
-            HTTP_STATUS=$(curl -sf -o /dev/null -w '%{http_code}' "${{ inputs.health-check-url }}" 2>/dev/null || true)
+          # Modal serverless may cold-start the container on first request.
+          # SP1 prover init can take 60-120s, so allow up to 3 min.
+          for i in $(seq 1 18); do
+            HTTP_STATUS=$(curl -sf -o /dev/null -w '%{http_code}' --max-time 15 "${{ inputs.health-check-url }}" 2>/dev/null || true)
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "Health check passed (${{ inputs.health-check-url }})"
               exit 0
             fi
-            echo "Attempt $i: HTTP $HTTP_STATUS — retrying in 5s..."
-            sleep 5
+            echo "Attempt $i/18: HTTP $HTTP_STATUS — retrying in 10s..."
+            sleep 10
           done
-          echo "::error::Health check failed after 3 attempts (${{ inputs.health-check-url }})"
+          echo "::error::Health check failed after 18 attempts (${{ inputs.health-check-url }})"
           exit 1
