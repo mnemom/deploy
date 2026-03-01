@@ -17,25 +17,24 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         REPO_NAME: ${{ inputs.repo-name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GH_REPO: ${{ github.repository }}
       run: |
-        set +e
+        echo "Starting deploy context analysis for $REPO_NAME PR #$PR_NUMBER"
+
         # Get changed files from the PR
-        CHANGED_FILES=$(gh pr view "${{ github.event.pull_request.number }}" \
-          --repo "${{ github.repository }}" \
-          --json files --jq '.files[].path' 2>&1)
-        RC=$?
-        set -e
-        if [ $RC -ne 0 ]; then
-          echo "::warning::Failed to get PR files (exit $RC): $CHANGED_FILES"
-          echo "Token type check:"
-          gh auth status 2>&1 || true
+        CHANGED_FILES=$(gh pr view "$PR_NUMBER" --repo "$GH_REPO" --json files --jq '.files[].path') || {
+          echo "::warning::Could not fetch PR files — skipping deploy context"
           exit 0
-        fi
+        }
 
         if [ -z "$CHANGED_FILES" ]; then
           echo "No changed files found, skipping"
           exit 0
         fi
+
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
 
         # Map repo -> services based on changed paths
         SERVICES=""
@@ -59,15 +58,10 @@ runs:
             [ "$HAS_GATEWAY" = true ] && SERVICES="${SERVICES:+$SERVICES, }gateway"
             [ "$HAS_OBSERVER" = true ] && SERVICES="${SERVICES:+$SERVICES, }observer"
             [ "$HAS_CLI" = true ] && SERVICES="${SERVICES:+$SERVICES, }cli"
-            # If no sub-path matched, assume all services
             [ -z "$SERVICES" ] && SERVICES="gateway, observer, cli"
             ;;
-          mnemom-api)
-            SERVICES="api"
-            ;;
-          mnemom-website)
-            SERVICES="website"
-            ;;
+          mnemom-api) SERVICES="api" ;;
+          mnemom-website) SERVICES="website" ;;
           mnemom-reputation)
             HAS_SERVER=false
             HAS_SDK=false
@@ -94,66 +88,55 @@ runs:
             [ "$HAS_SDK" = true ] && SERVICES="${SERVICES:+$SERVICES, }risk-sdk"
             [ -z "$SERVICES" ] && SERVICES="risk, risk-sdk"
             ;;
-          hunter)
-            SERVICES="hunter"
-            ;;
-          *)
-            SERVICES="unknown"
-            ;;
+          hunter) SERVICES="hunter" ;;
+          *) SERVICES="unknown" ;;
         esac
 
-        # Detect shared dependency changes (@mnemom/ packages in package.json diffs)
+        echo "Services affected: $SERVICES"
+
+        # Detect shared dependency changes
         SHARED_DEPS=""
         PKG_FILES=$(echo "$CHANGED_FILES" | grep 'package\.json$' || true)
         if [ -n "$PKG_FILES" ]; then
-          # Get the diff for package.json files and look for @mnemom/ packages
-          DEPS_CHANGED=$(gh pr diff "${{ github.event.pull_request.number }}" \
-            --repo "${{ github.repository }}" | \
-            grep -oE '"@mnemom/[^"]+' | sed 's/"@mnemom\///' | sort -u | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
-          if [ -n "$DEPS_CHANGED" ]; then
-            SHARED_DEPS="$DEPS_CHANGED"
-          fi
+          DEPS_CHANGED=$(gh pr diff "$PR_NUMBER" --repo "$GH_REPO" 2>/dev/null \
+            | grep -oE '"@mnemom/[^"]+' | sed 's/"@mnemom\///' | sort -u \
+            | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g') || true
+          [ -n "$DEPS_CHANGED" ] && SHARED_DEPS="$DEPS_CHANGED"
         fi
 
         # Detect config file changes
         CONFIG_CHANGES=""
-        CONFIG_PATTERNS="wrangler\.toml|fly\.toml|netlify\.toml|Dockerfile"
-        MATCHED_CONFIGS=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | xargs -I{} basename {} | sort -u | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
-        if [ -n "$MATCHED_CONFIGS" ]; then
-          CONFIG_CHANGES="$MATCHED_CONFIGS"
-        fi
+        MATCHED_CONFIGS=$(echo "$CHANGED_FILES" \
+          | grep -E 'wrangler\.toml|fly\.toml|netlify\.toml|Dockerfile' \
+          | xargs -I{} basename {} | sort -u \
+          | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g') || true
+        [ -n "$MATCHED_CONFIGS" ] && CONFIG_CHANGES="$MATCHED_CONFIGS"
 
-        # Build the comment body
-        BODY="## Deploy Context
+        # Build the comment body using a temp file to avoid quoting issues
+        BODY_FILE=$(mktemp)
+        {
+          echo "## Deploy Context"
+          echo ""
+          echo "| | |"
+          echo "|---|---|"
+          echo "| **Services affected** | $SERVICES |"
+          [ -n "$SHARED_DEPS" ] && echo "| **Shared deps changed** | $SHARED_DEPS |"
+          [ -n "$CONFIG_CHANGES" ] && echo "| **Config changes** | $CONFIG_CHANGES |"
+          echo ""
+          echo "### Staging Deploy"
+          echo "After merging, staging deploy triggers automatically."
+          echo "Manual trigger: \`gh workflow run deploy.yml --repo mnemom/deploy -f repos=$REPO_NAME -f environment=staging\`"
+        } > "$BODY_FILE"
 
-        | | |
-        |---|---|
-        | **Services affected** | ${SERVICES} |"
-
-        if [ -n "$SHARED_DEPS" ]; then
-          BODY="${BODY}
-        | **Shared deps changed** | ${SHARED_DEPS} |"
-        fi
-
-        if [ -n "$CONFIG_CHANGES" ]; then
-          BODY="${BODY}
-        | **Config changes** | ${CONFIG_CHANGES} |"
-        fi
-
-        BODY="${BODY}
-
-        ### Staging Deploy
-        After merging, staging deploy triggers automatically.
-        Manual trigger: \`gh workflow run deploy.yml --repo mnemom/deploy -f repos=${REPO_NAME} -f environment=staging\`"
-
-        # Remove leading whitespace from heredoc-style indentation
-        BODY=$(echo "$BODY" | sed 's/^        //')
+        echo "Comment body:"
+        cat "$BODY_FILE"
 
         # Post or update sticky comment
-        gh pr comment "${{ github.event.pull_request.number }}" \
-          --repo "${{ github.repository }}" \
-          --body "$BODY" \
-          --edit-last 2>/dev/null || \
-        gh pr comment "${{ github.event.pull_request.number }}" \
-          --repo "${{ github.repository }}" \
-          --body "$BODY"
+        gh pr comment "$PR_NUMBER" --repo "$GH_REPO" \
+          --body-file "$BODY_FILE" \
+          --edit-last 2>/dev/null \
+        || gh pr comment "$PR_NUMBER" --repo "$GH_REPO" \
+          --body-file "$BODY_FILE"
+
+        rm -f "$BODY_FILE"
+        echo "Deploy context comment posted successfully"
