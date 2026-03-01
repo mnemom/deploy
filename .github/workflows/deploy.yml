@@ -149,7 +149,7 @@ jobs:
       working-directory: observer
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
       cache-dependency-path: observer/package-lock.json
-      health-check-url: https://smoltbot-observer-staging.workers.dev/health
+      # observer is a cron worker — no HTTP health check
     secrets: inherit
 
   staging-api:
@@ -175,7 +175,7 @@ jobs:
       environment: staging
       working-directory: server
       cache-dependency-path: server/package-lock.json
-      health-check-url: https://mnemom-reputation-staging.workers.dev/health
+      health-check-url: https://reputation-staging.mnemom.ai/health
     secrets: inherit
 
   staging-risk:
@@ -189,7 +189,7 @@ jobs:
       environment: staging
       working-directory: server
       cache-dependency-path: server/package-lock.json
-      health-check-url: https://mnemom-risk-staging.workers.dev/health
+      health-check-url: https://risk-staging.mnemom.ai/health
     secrets: inherit
 
   staging-prover:
@@ -393,7 +393,7 @@ jobs:
       working-directory: observer
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
       cache-dependency-path: observer/package-lock.json
-      health-check-url: https://smoltbot-observer.workers.dev/health
+      # observer is a cron worker — no HTTP health check
     secrets: inherit
 
   prod-api:
@@ -429,7 +429,7 @@ jobs:
       environment: production
       working-directory: server
       cache-dependency-path: server/package-lock.json
-      health-check-url: https://mnemom-reputation.workers.dev/health
+      health-check-url: https://reputation.mnemom.ai/health
     secrets: inherit
 
   prod-risk:
@@ -448,7 +448,7 @@ jobs:
       environment: production
       working-directory: server
       cache-dependency-path: server/package-lock.json
-      health-check-url: https://mnemom-risk.workers.dev/health
+      health-check-url: https://risk.mnemom.ai/health
     secrets: inherit
 
   prod-prover:
