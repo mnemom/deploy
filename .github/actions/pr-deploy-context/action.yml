@@ -1,0 +1,150 @@
+name: PR Deploy Context
+description: Post a PR comment showing which services are affected and how to trigger a staging deploy
+
+inputs:
+  repo-name:
+    description: "Repository name (e.g. smoltbot, mnemom-api)"
+    required: true
+  github-token:
+    description: "GitHub token with PR write access"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Analyze PR and post deploy context
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO_NAME: ${{ inputs.repo-name }}
+      run: |
+        # Get changed files from the PR
+        CHANGED_FILES=$(gh pr view "${{ github.event.pull_request.number }}" \
+          --repo "${{ github.repository }}" \
+          --json files --jq '.files[].path')
+
+        if [ -z "$CHANGED_FILES" ]; then
+          echo "No changed files found, skipping"
+          exit 0
+        fi
+
+        # Map repo -> services based on changed paths
+        SERVICES=""
+        case "$REPO_NAME" in
+          smoltbot)
+            HAS_GATEWAY=false
+            HAS_OBSERVER=false
+            HAS_CLI=false
+            while IFS= read -r file; do
+              case "$file" in
+                gateway/*) HAS_GATEWAY=true ;;
+                observer/*) HAS_OBSERVER=true ;;
+                cli/*) HAS_CLI=true ;;
+                shared/*)
+                  HAS_GATEWAY=true
+                  HAS_OBSERVER=true
+                  HAS_CLI=true
+                  ;;
+              esac
+            done <<< "$CHANGED_FILES"
+            [ "$HAS_GATEWAY" = true ] && SERVICES="${SERVICES:+$SERVICES, }gateway"
+            [ "$HAS_OBSERVER" = true ] && SERVICES="${SERVICES:+$SERVICES, }observer"
+            [ "$HAS_CLI" = true ] && SERVICES="${SERVICES:+$SERVICES, }cli"
+            # If no sub-path matched, assume all services
+            [ -z "$SERVICES" ] && SERVICES="gateway, observer, cli"
+            ;;
+          mnemom-api)
+            SERVICES="api"
+            ;;
+          mnemom-website)
+            SERVICES="website"
+            ;;
+          mnemom-reputation)
+            HAS_SERVER=false
+            HAS_SDK=false
+            while IFS= read -r file; do
+              case "$file" in
+                server/*) HAS_SERVER=true ;;
+                client/*) HAS_SDK=true ;;
+              esac
+            done <<< "$CHANGED_FILES"
+            [ "$HAS_SERVER" = true ] && SERVICES="${SERVICES:+$SERVICES, }reputation"
+            [ "$HAS_SDK" = true ] && SERVICES="${SERVICES:+$SERVICES, }reputation-sdk"
+            [ -z "$SERVICES" ] && SERVICES="reputation, reputation-sdk"
+            ;;
+          mnemom-risk)
+            HAS_SERVER=false
+            HAS_SDK=false
+            while IFS= read -r file; do
+              case "$file" in
+                server/*) HAS_SERVER=true ;;
+                client/*) HAS_SDK=true ;;
+              esac
+            done <<< "$CHANGED_FILES"
+            [ "$HAS_SERVER" = true ] && SERVICES="${SERVICES:+$SERVICES, }risk"
+            [ "$HAS_SDK" = true ] && SERVICES="${SERVICES:+$SERVICES, }risk-sdk"
+            [ -z "$SERVICES" ] && SERVICES="risk, risk-sdk"
+            ;;
+          hunter)
+            SERVICES="hunter"
+            ;;
+          *)
+            SERVICES="unknown"
+            ;;
+        esac
+
+        # Detect shared dependency changes (@mnemom/ packages in package.json diffs)
+        SHARED_DEPS=""
+        PKG_FILES=$(echo "$CHANGED_FILES" | grep 'package\.json$' || true)
+        if [ -n "$PKG_FILES" ]; then
+          # Get the diff for package.json files and look for @mnemom/ packages
+          DEPS_CHANGED=$(gh pr diff "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" | \
+            grep -oE '"@mnemom/[^"]+' | sed 's/"@mnemom\///' | sort -u | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
+          if [ -n "$DEPS_CHANGED" ]; then
+            SHARED_DEPS="$DEPS_CHANGED"
+          fi
+        fi
+
+        # Detect config file changes
+        CONFIG_CHANGES=""
+        CONFIG_PATTERNS="wrangler\.toml|fly\.toml|netlify\.toml|Dockerfile"
+        MATCHED_CONFIGS=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | xargs -I{} basename {} | sort -u | tr '\n' ', ' | sed 's/,$//' | sed 's/,/, /g')
+        if [ -n "$MATCHED_CONFIGS" ]; then
+          CONFIG_CHANGES="$MATCHED_CONFIGS"
+        fi
+
+        # Build the comment body
+        BODY="## Deploy Context
+
+        | | |
+        |---|---|
+        | **Services affected** | ${SERVICES} |"
+
+        if [ -n "$SHARED_DEPS" ]; then
+          BODY="${BODY}
+        | **Shared deps changed** | ${SHARED_DEPS} |"
+        fi
+
+        if [ -n "$CONFIG_CHANGES" ]; then
+          BODY="${BODY}
+        | **Config changes** | ${CONFIG_CHANGES} |"
+        fi
+
+        BODY="${BODY}
+
+        ### Staging Deploy
+        After merging, staging deploy triggers automatically.
+        Manual trigger: \`gh workflow run deploy.yml --repo mnemom/deploy -f repos=${REPO_NAME} -f environment=staging\`"
+
+        # Remove leading whitespace from heredoc-style indentation
+        BODY=$(echo "$BODY" | sed 's/^        //')
+
+        # Post or update sticky comment
+        gh pr comment "${{ github.event.pull_request.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "$BODY" \
+          --edit-last 2>/dev/null || \
+        gh pr comment "${{ github.event.pull_request.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "$BODY"
