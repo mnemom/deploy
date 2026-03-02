@@ -55,20 +55,15 @@ jobs:
           DISPATCH_ID="${{ steps.dispatch.outputs.id }}"
           echo "Dispatching to $REPO with dispatch-id=$DISPATCH_ID"
 
-          # Build inputs JSON — only include non-empty values
-          INPUTS="{\"dispatch-id\":\"$DISPATCH_ID\""
+          ARGS=(--repo "$REPO" --ref main -f "dispatch-id=$DISPATCH_ID")
           if [ -n "${{ inputs.npm-directory }}" ]; then
-            INPUTS="$INPUTS,\"npm-directory\":\"${{ inputs.npm-directory }}\""
+            ARGS+=(-f "npm-directory=${{ inputs.npm-directory }}")
           fi
           if [ -n "${{ inputs.access }}" ]; then
-            INPUTS="$INPUTS,\"access\":\"${{ inputs.access }}\""
+            ARGS+=(-f "access=${{ inputs.access }}")
           fi
-          INPUTS="$INPUTS}"
 
-          gh workflow run publish.yml \
-            --repo "$REPO" \
-            --ref main \
-            --json <<< "$INPUTS"
+          gh workflow run publish.yml "${ARGS[@]}"
 
       - name: Wait for run to appear
         id: find-run
