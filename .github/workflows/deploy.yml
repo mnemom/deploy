@@ -345,6 +345,7 @@ jobs:
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aip-otel-exporter
+      npm-directory: packages/typescript
     secrets: inherit
 
   prod-policy-engine:
@@ -372,6 +373,7 @@ jobs:
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-reputation
+      npm-directory: client/typescript
     secrets: inherit
 
   prod-risk-sdk:
@@ -385,6 +387,7 @@ jobs:
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-risk
+      npm-directory: client/typescript
     secrets: inherit
 
   # ─────────────────────────────────────────────
