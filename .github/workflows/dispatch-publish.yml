@@ -43,74 +43,60 @@ jobs:
           private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
           owner: mnemom
 
-      - name: Generate dispatch ID
+      - name: Dispatch and get run ID
         id: dispatch
-        run: echo "id=dispatch-$(date +%s)-$RANDOM" >> "$GITHUB_OUTPUT"
-
-      - name: Trigger source repo workflow
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           REPO="${{ inputs.repository }}"
-          DISPATCH_ID="${{ steps.dispatch.outputs.id }}"
-          echo "Dispatching to $REPO with dispatch-id=$DISPATCH_ID"
 
-          ARGS=(--repo "$REPO" --ref main -f "dispatch-id=$DISPATCH_ID")
+          # Build inputs object
+          INPUTS='{"dispatch-id":"deploy-${{ github.run_id }}"'
           if [ -n "${{ inputs.npm-directory }}" ]; then
-            ARGS+=(-f "npm-directory=${{ inputs.npm-directory }}")
+            INPUTS="$INPUTS,\"npm-directory\":\"${{ inputs.npm-directory }}\""
           fi
           if [ -n "${{ inputs.access }}" ]; then
-            ARGS+=(-f "access=${{ inputs.access }}")
+            INPUTS="$INPUTS,\"access\":\"${{ inputs.access }}\""
+          fi
+          INPUTS="$INPUTS}"
+
+          # Look up the workflow ID for publish.yml
+          WORKFLOW_ID=$(gh api "repos/$REPO/actions/workflows" \
+            --jq '.workflows[] | select(.path==".github/workflows/publish.yml") | .id')
+
+          if [ -z "$WORKFLOW_ID" ]; then
+            echo "::error::Could not find publish.yml workflow in $REPO"
+            exit 1
           fi
 
-          gh workflow run publish.yml "${ARGS[@]}"
+          echo "Dispatching publish.yml (workflow $WORKFLOW_ID) in $REPO"
+          echo "  inputs: $INPUTS"
 
-      - name: Wait for run to appear
-        id: find-run
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          REPO="${{ inputs.repository }}"
-          DISPATCH_ID="${{ steps.dispatch.outputs.id }}"
-          echo "Waiting for run with dispatch-id=$DISPATCH_ID in $REPO..."
+          # Use the API directly with return_run_details to get the run ID
+          RESPONSE=$(gh api \
+            "repos/$REPO/actions/workflows/$WORKFLOW_ID/dispatches" \
+            -X POST \
+            -f ref=main \
+            --input - <<< "{\"ref\":\"main\",\"inputs\":$INPUTS,\"return_run_details\":true}")
 
-          # Give GitHub a moment to create the run
-          sleep 5
+          RUN_ID=$(echo "$RESPONSE" | jq -r '.workflow_run_id // empty')
 
-          for i in $(seq 1 30); do
-            # List recent workflow runs for publish.yml
-            RUNS=$(gh run list \
-              --repo "$REPO" \
-              --workflow publish.yml \
-              --limit 10 \
-              --json databaseId,status,createdAt)
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::Dispatch succeeded but no run ID returned"
+            echo "Response: $RESPONSE"
+            exit 1
+          fi
 
-            # For each recent run, check if its dispatch-id input matches
-            for RUN_ID in $(echo "$RUNS" | jq -r '.[].databaseId'); do
-              FOUND_ID=$(gh api \
-                "repos/$REPO/actions/runs/$RUN_ID" \
-                --jq '.inputs["dispatch-id"] // ""' 2>/dev/null || echo "")
-
-              if [ "$FOUND_ID" = "$DISPATCH_ID" ]; then
-                echo "Found matching run: $RUN_ID"
-                echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-            done
-
-            echo "Attempt $i/30: run not found yet, waiting 10s..."
-            sleep 10
-          done
-
-          echo "::error::Timed out waiting for dispatched run to appear"
-          exit 1
+          echo "Dispatched run: $RUN_ID"
+          echo "  → https://github.com/$REPO/actions/runs/$RUN_ID"
+          echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
       - name: Wait for run to complete
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           REPO="${{ inputs.repository }}"
-          RUN_ID="${{ steps.find-run.outputs.run-id }}"
+          RUN_ID="${{ steps.dispatch.outputs.run-id }}"
           echo "Watching run $RUN_ID in $REPO..."
           echo "  → https://github.com/$REPO/actions/runs/$RUN_ID"
 
