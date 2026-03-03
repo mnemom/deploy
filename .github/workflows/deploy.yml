@@ -23,6 +23,8 @@ on:
         type: boolean
         default: false
 
+permissions: {}
+
 concurrency:
   group: deploy-${{ github.event.client_payload.repo || inputs.repos || 'manual' }}-${{ github.event.client_payload.environment || inputs.environment || 'staging' }}
   cancel-in-progress: false
@@ -129,7 +131,7 @@ jobs:
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Send Slack notification
         if: env.SLACK_WEBHOOK_URL != ''
         continue-on-error: true
@@ -152,7 +154,7 @@ jobs:
     if: needs.plan.outputs.source-repo != '' && needs.plan.outputs.source-ref != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOY_APP_ID }}
@@ -349,7 +351,7 @@ jobs:
       needs.staging-complete.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Send Slack notification
         if: env.SLACK_WEBHOOK_URL != ''
         continue-on-error: true
@@ -400,8 +402,8 @@ jobs:
       needs.e2e.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOY_APP_ID }}
@@ -752,7 +754,7 @@ jobs:
     needs: [plan, verify-ci, staging-complete, e2e, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Results
         run: |
           echo "## Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
@@ -817,7 +819,7 @@ jobs:
     if: always() && github.event.inputs.dry-run != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Send Slack notification
         if: env.SLACK_WEBHOOK_URL != ''
         continue-on-error: true

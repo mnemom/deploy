@@ -34,6 +34,8 @@ on:
         type: string
         default: ""
 
+permissions: {}
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -45,7 +47,7 @@ jobs:
         run: echo "dispatch-id=${{ inputs.dispatch-id }}"
 
       # Cross-repo checkout (legacy: called from deploy repo)
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         if: inputs.repository != ''
         id: app-token
         with:
@@ -53,7 +55,7 @@ jobs:
           private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
           owner: mnemom
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         if: inputs.repository != ''
         with:
           repository: ${{ inputs.repository }}
@@ -61,17 +63,17 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # Default checkout (new: called from source repo via workflow_call)
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         if: inputs.repository == ''
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
         env:
           NODE_AUTH_TOKEN: "setup"
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         if: inputs.publish-pypi
         with:
           python-version: "3.12"
@@ -140,7 +142,7 @@ jobs:
 
       - name: Publish PyPI
         if: inputs.publish-pypi
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
         with:
           packages-dir: ${{ inputs.pypi-directory }}/dist/
           skip-existing: true
