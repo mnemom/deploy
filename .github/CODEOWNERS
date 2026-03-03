@@ -1,0 +1,6 @@
+# Default owner for all files
+* @alexgarden
+
+# Critical paths get extra scrutiny
+.github/workflows/ @alexgarden
+scripts/ @alexgarden
