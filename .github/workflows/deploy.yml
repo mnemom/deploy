@@ -363,16 +363,41 @@ jobs:
         run: node scripts/notify-slack.js
 
   # ─────────────────────────────────────────────
+  # E2E Tests (run against staging before production)
+  # ─────────────────────────────────────────────
+
+  e2e:
+    name: "E2E Tests"
+    needs: [staging-complete]
+    if: needs.staging-complete.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+      - name: Run E2E tests
+        run: node --test tests/e2e/*.test.js
+        timeout-minutes: 5
+      - name: E2E Results Summary
+        if: always()
+        run: |
+          echo "## E2E Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tests ran against staging endpoints." >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────
   # Confidence Score (informational, does not gate production)
   # ─────────────────────────────────────────────
 
   confidence:
     name: "Confidence Score"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.promote == 'true' &&
-      needs.staging-complete.result == 'success'
+      needs.staging-complete.result == 'success' &&
+      needs.e2e.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -430,7 +455,7 @@ jobs:
 
   prod-types:
     name: "prod / mnemom-types (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-types == 'true' &&
@@ -444,7 +469,7 @@ jobs:
 
   prod-aap:
     name: "prod / aap (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-aap == 'true' &&
@@ -458,7 +483,7 @@ jobs:
 
   prod-aip:
     name: "prod / aip (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-aip == 'true' &&
@@ -472,7 +497,7 @@ jobs:
 
   prod-otel:
     name: "prod / aip-otel-exporter (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-aip-otel-exporter == 'true' &&
@@ -487,7 +512,7 @@ jobs:
 
   prod-policy-engine:
     name: "prod / policy-engine (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
@@ -502,7 +527,7 @@ jobs:
 
   prod-reputation-sdk:
     name: "prod / reputation-sdk (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation-sdk == 'true' &&
@@ -517,7 +542,7 @@ jobs:
 
   prod-risk-sdk:
     name: "prod / risk-sdk (publish)"
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-risk-sdk == 'true' &&
@@ -647,7 +672,7 @@ jobs:
   prod-prover:
     name: "prod / prover"
     # pure Rust — no npm package deps
-    needs: [plan, staging-complete]
+    needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-prover == 'true' &&
@@ -724,7 +749,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always() && github.event.inputs.dry-run != 'true'
-    needs: [plan, verify-ci, staging-complete, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, verify-ci, staging-complete, e2e, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
