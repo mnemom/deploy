@@ -11,14 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install actionlint
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          LATEST=$(curl -s https://api.github.com/repos/rhysd/actionlint/releases/latest | grep tag_name | cut -d '"' -f4)
-          curl -sL "https://github.com/rhysd/actionlint/releases/download/${LATEST}/actionlint_${LATEST#v}_linux_amd64.tar.gz" | tar xz -C "$HOME/.local/bin" actionlint
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run actionlint
-        run: actionlint -shellcheck=
+        uses: raven-actions/actionlint@v2
+        with:
+          shellcheck: false
 
   lint:
     name: Lint
