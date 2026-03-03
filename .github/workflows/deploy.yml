@@ -17,6 +17,11 @@ on:
         options:
           - staging
           - production
+      dry-run:
+        description: "Dry run — plan + verify only, no actual deploys"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-${{ github.event.client_payload.repo || inputs.repos || 'manual' }}-${{ github.event.client_payload.environment || inputs.environment || 'staging' }}
@@ -114,6 +119,61 @@ jobs:
             done
           fi
 
+  # ─────────────────────────────────────────────
+  # Notify: Deploy started
+  # ─────────────────────────────────────────────
+
+  notify-plan:
+    name: "Notify: Deploy Started"
+    needs: plan
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DEPLOY_EVENT: staging_start
+          DEPLOY_SERVICES: ${{ needs.plan.outputs.source-repo }}
+          DEPLOY_ENVIRONMENT: ${{ needs.plan.outputs.promote == 'true' && 'production' || 'staging' }}
+          DEPLOY_STATUS: pending
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/notify-slack.js
+
+  # ─────────────────────────────────────────────
+  # Verify CI: check source repo CI status
+  # ─────────────────────────────────────────────
+
+  verify-ci:
+    name: "Verify CI"
+    needs: plan
+    if: needs.plan.outputs.source-repo != '' && needs.plan.outputs.source-ref != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+      - name: Check source repo CI status
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SOURCE_REPO: ${{ needs.plan.outputs.source-repo }}
+          SOURCE_REF: ${{ needs.plan.outputs.source-ref }}
+        run: |
+          echo "Checking CI status for $SOURCE_REPO @ $SOURCE_REF"
+          # Get the check runs for the commit
+          STATUS=$(gh api repos/mnemom/$SOURCE_REPO/commits/$SOURCE_REF/check-runs \
+            --jq '[.check_runs[] | select(.name != "Trigger Deploy" and .name != "Deploy Context") | .conclusion] | if all(. == "success" or . == "skipped") then "pass" else "fail" end')
+          if [ "$STATUS" != "pass" ]; then
+            echo "::error::CI checks have not all passed for $SOURCE_REPO @ $SOURCE_REF"
+            exit 1
+          fi
+          echo "All CI checks passed"
+
   # ═══════════════════════════════════════════════
   # STAGING PHASE (auto, no approval)
   # ═══════════════════════════════════════════════
@@ -124,8 +184,12 @@ jobs:
 
   staging-gateway:
     name: "staging / gateway"
-    needs: plan
-    if: needs.plan.outputs.deploy-smoltbot == 'true'
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/smoltbot
@@ -139,8 +203,12 @@ jobs:
 
   staging-observer:
     name: "staging / observer"
-    needs: plan
-    if: needs.plan.outputs.deploy-smoltbot == 'true'
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/smoltbot
@@ -154,8 +222,12 @@ jobs:
 
   staging-api:
     name: "staging / api"
-    needs: plan
-    if: needs.plan.outputs.deploy-mnemom-api == 'true'
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-api == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/mnemom-api
@@ -166,8 +238,12 @@ jobs:
 
   staging-reputation:
     name: "staging / reputation"
-    needs: plan
-    if: needs.plan.outputs.deploy-mnemom-reputation == 'true'
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/mnemom-reputation
@@ -180,8 +256,12 @@ jobs:
 
   staging-risk:
     name: "staging / risk"
-    needs: plan
-    if: needs.plan.outputs.deploy-mnemom-risk == 'true'
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-risk == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/mnemom-risk
@@ -194,8 +274,12 @@ jobs:
 
   staging-prover:
     name: "staging / prover"
-    needs: plan
-    if: needs.plan.outputs.deploy-mnemom-prover == 'true'
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-prover == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-modal.yml
     with:
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || 'main' }}
@@ -209,11 +293,12 @@ jobs:
 
   staging-website:
     name: "staging / website"
-    needs: [plan, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover]
+    needs: [plan, verify-ci, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-website == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-netlify.yml
     with:
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
@@ -227,7 +312,7 @@ jobs:
 
   staging-complete:
     name: "Staging Complete"
-    needs: [staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website]
+    needs: [verify-ci, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -237,6 +322,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Service | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CI Verification | ${{ needs.verify-ci.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| gateway | ${{ needs.staging-gateway.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| observer | ${{ needs.staging-observer.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| api | ${{ needs.staging-api.result }} |" >> "$GITHUB_STEP_SUMMARY"
@@ -249,6 +335,32 @@ jobs:
         run: |
           echo "Staging deployment failed — production will not proceed"
           exit 1
+
+  # ─────────────────────────────────────────────
+  # Notify: Staging complete (production approval pending)
+  # ─────────────────────────────────────────────
+
+  notify-staging-complete:
+    name: "Notify: Staging Complete"
+    needs: [plan, staging-complete]
+    if: >-
+      always() &&
+      needs.plan.outputs.promote == 'true' &&
+      needs.staging-complete.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DEPLOY_EVENT: production_approval
+          DEPLOY_SERVICES: ${{ needs.plan.outputs.source-repo }}
+          DEPLOY_ENVIRONMENT: production
+          DEPLOY_STATUS: pending
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/notify-slack.js
 
   # ─────────────────────────────────────────────
   # Confidence Score (informational, does not gate production)
@@ -287,6 +399,27 @@ jobs:
             }
         run: node scripts/confidence-score.js
 
+  # ─────────────────────────────────────────────
+  # Dry Run Summary
+  # ─────────────────────────────────────────────
+
+  dry-run-summary:
+    name: "Dry Run Summary"
+    needs: [plan, verify-ci, confidence]
+    if: always() && github.event.inputs.dry-run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "## Dry Run Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "No actual deploys were performed." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Plan | ${{ needs.plan.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CI Verification | ${{ needs.verify-ci.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Confidence Score | ${{ needs.confidence.result }} |" >> "$GITHUB_STEP_SUMMARY"
+
   # ═══════════════════════════════════════════════
   # PRODUCTION PHASE (requires approval)
   # ═══════════════════════════════════════════════
@@ -302,7 +435,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-types == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-types
@@ -315,7 +449,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-aap == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aap
@@ -328,7 +463,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-aip == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aip
@@ -341,7 +477,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-aip-otel-exporter == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aip-otel-exporter
@@ -355,7 +492,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/smoltbot
@@ -369,7 +507,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation-sdk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-reputation
@@ -383,7 +522,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-risk-sdk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-risk
@@ -403,7 +543,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
     with:
       repository: mnemom/smoltbot
@@ -426,7 +567,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/smoltbot
@@ -446,7 +588,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-api == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
     with:
       repository: mnemom/mnemom-api
@@ -465,7 +608,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
     with:
       repository: mnemom/mnemom-reputation
@@ -486,7 +630,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-risk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
     with:
       repository: mnemom/mnemom-risk
@@ -507,7 +652,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-prover == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-modal.yml
     with:
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-prover' && needs.plan.outputs.source-ref || 'main' }}
@@ -528,7 +674,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-mnemom-website == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-netlify.yml
     with:
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-website' && needs.plan.outputs.source-ref || 'main' }}
@@ -545,7 +692,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-smoltbot == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/smoltbot
@@ -560,7 +708,8 @@ jobs:
       always() &&
       needs.plan.outputs.deploy-hunter == 'true' &&
       needs.plan.outputs.promote == 'true' &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-fly.yml
     with:
       repository: mnemom/hunter
@@ -574,13 +723,19 @@ jobs:
 
   summary:
     name: Deploy Complete
-    if: always()
-    needs: [plan, staging-complete, confidence, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    if: always() && github.event.inputs.dry-run != 'true'
+    needs: [plan, verify-ci, staging-complete, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v6
       - name: Results
         run: |
           echo "## Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Pre-deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CI Verification | ${{ needs.verify-ci.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Staging" >> "$GITHUB_STEP_SUMMARY"
           echo "| Service | Status |" >> "$GITHUB_STEP_SUMMARY"
@@ -608,8 +763,44 @@ jobs:
             echo "| cli | ${{ needs.prod-cli.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| hunter | ${{ needs.prod-hunter.result }} |" >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Write audit trail
+        if: always()
+        run: |
+          cat > deployment-audit.jsonl <<JSONL
+          {"timestamp":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","services":"${{ needs.plan.outputs.source-repo }}","environment":"${{ needs.plan.outputs.promote == 'true' && 'production' || 'staging' }}","source_ref":"${{ needs.plan.outputs.source-ref }}","trigger":"${{ github.event_name }}","run_id":"${{ github.run_id }}","conclusion":"${{ contains(needs.*.result, 'failure') && 'failure' || 'success' }}"}
+          JSONL
+      - name: Upload audit trail
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-audit
+          path: deployment-audit.jsonl
+          retention-days: 90
       - name: Check for failures
         if: contains(needs.*.result, 'failure')
         run: |
           echo "One or more deploy jobs failed"
           exit 1
+
+  # ─────────────────────────────────────────────
+  # Notify: Deploy complete/failed
+  # ─────────────────────────────────────────────
+
+  notify-complete:
+    name: "Notify: Deploy Result"
+    needs: [plan, summary]
+    if: always() && github.event.inputs.dry-run != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DEPLOY_EVENT: ${{ needs.summary.result == 'success' && 'deploy_complete' || 'deploy_failure' }}
+          DEPLOY_SERVICES: ${{ needs.plan.outputs.source-repo }}
+          DEPLOY_ENVIRONMENT: ${{ needs.plan.outputs.promote == 'true' && 'production' || 'staging' }}
+          DEPLOY_STATUS: ${{ needs.summary.result == 'success' && 'success' || 'failure' }}
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/notify-slack.js

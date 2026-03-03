@@ -177,6 +177,34 @@ async function main() {
         impact: "n/a",
       });
     }
+
+    // 6. CodeQL alert count
+    try {
+      const alerts = await ghApi(
+        `/repos/mnemom/${repo}/code-scanning/alerts?state=open&per_page=1`
+      );
+      if (Array.isArray(alerts) && alerts.length > 0) {
+        score -= 10;
+        factors.push({ signal: "Open CodeQL alerts", impact: "-10" });
+      }
+    } catch {
+      // Ignore — repo may not have CodeQL enabled
+    }
+
+    // 7. Time-of-day / day-of-week factor
+    const now = new Date();
+    const hour = now.getUTCHours();
+    const day = now.getUTCDay(); // 0=Sunday
+    if (day === 5 && hour >= 20) {
+      score -= 15;
+      factors.push({ signal: "Friday afternoon deploy", impact: "-15" });
+    } else if (day === 0 || day === 6) {
+      score -= 10;
+      factors.push({ signal: "Weekend deploy", impact: "-10" });
+    } else if (hour >= 22 || hour < 6) {
+      score -= 5;
+      factors.push({ signal: "Late night deploy (UTC)", impact: "-5" });
+    }
   } catch (err) {
     // If API calls fail, output neutral score
     writeSummary("## Deployment Confidence Score");
