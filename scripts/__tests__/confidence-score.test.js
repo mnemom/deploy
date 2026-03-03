@@ -54,10 +54,45 @@ function runScript(env, fetchMock) {
   });
 }
 
+function runScriptWithCode(env, code) {
+  const summaryFile = tmpFile();
+
+  return new Promise((resolve) => {
+    const childEnv = {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      GITHUB_STEP_SUMMARY: summaryFile,
+      ...env,
+    };
+    execFile(
+      process.execPath,
+      ["-e", code],
+      { env: childEnv, timeout: 10000 },
+      (error, stdout, stderr) => {
+        let summary = "";
+        try {
+          summary = fs.readFileSync(summaryFile, "utf8");
+        } catch {}
+        try {
+          fs.unlinkSync(summaryFile);
+        } catch {}
+
+        resolve({
+          exitCode: error ? error.code || 1 : 0,
+          stdout,
+          stderr,
+          summary,
+        });
+      }
+    );
+  });
+}
+
 function ghApiFetchMock(opts = {}) {
   const totalChanges = opts.totalChanges || 10;
   const files = opts.files || [{ filename: "src/index.ts", additions: 5, deletions: 5 }];
   const deployDaysAgo = opts.deployDaysAgo || 1;
+  const codeqlAlerts = opts.codeqlAlerts || [];
 
   const commitResponse = JSON.stringify({
     parents: [{ sha: "parent-sha-123" }],
@@ -76,6 +111,7 @@ function ghApiFetchMock(opts = {}) {
       ).toISOString(),
     },
   ]);
+  const codeqlResponse = JSON.stringify(codeqlAlerts);
 
   return `async (url) => {
     if (url.includes("/commits/")) {
@@ -86,6 +122,9 @@ function ghApiFetchMock(opts = {}) {
     }
     if (url.includes("/deployments")) {
       return { ok: true, json: async () => (${deploymentsResponse}) };
+    }
+    if (url.includes("/code-scanning/alerts")) {
+      return { ok: true, json: async () => (${codeqlResponse}) };
     }
     return { ok: true, json: async () => ({}) };
   }`;
@@ -211,5 +250,172 @@ describe("confidence-score", () => {
     assert.strictEqual(result.exitCode, 0);
     const score = extractScore(result.summary);
     assert.strictEqual(score, 50);
+  });
+
+  it("reduces score when CodeQL alerts are open", async () => {
+    const fetchMock = ghApiFetchMock({
+      files: [{ filename: "src/index.ts", additions: 5, deletions: 5 }],
+      deployDaysAgo: 1,
+      codeqlAlerts: [{ number: 1, state: "open" }],
+    });
+
+    const result = await runScript(
+      {
+        SOURCE_REPO: "smoltbot",
+        SOURCE_REF: "abc1234567890",
+        GITHUB_TOKEN: "test-token",
+        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+      },
+      fetchMock
+    );
+
+    assert.strictEqual(result.exitCode, 0);
+    const score = extractScore(result.summary);
+    assert.ok(score !== null, "Should have a score in summary");
+    assert.ok(result.summary.includes("CodeQL"), "Should mention CodeQL alerts");
+  });
+
+  it("does not penalize when CodeQL returns no alerts", async () => {
+    const fetchMock = ghApiFetchMock({
+      files: [{ filename: "src/index.ts", additions: 5, deletions: 5 }],
+      deployDaysAgo: 1,
+      codeqlAlerts: [],
+    });
+
+    const result = await runScript(
+      {
+        SOURCE_REPO: "smoltbot",
+        SOURCE_REF: "abc1234567890",
+        GITHUB_TOKEN: "test-token",
+        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+      },
+      fetchMock
+    );
+
+    assert.strictEqual(result.exitCode, 0);
+    const score = extractScore(result.summary);
+    assert.ok(score !== null, "Should have a score in summary");
+    assert.ok(!result.summary.includes("CodeQL"), "Should not mention CodeQL");
+  });
+
+  it("reduces score for weekend deploys", async () => {
+    const fetchMock = ghApiFetchMock({
+      files: [{ filename: "src/index.ts", additions: 5, deletions: 5 }],
+      deployDaysAgo: 1,
+    });
+
+    const code = `
+      const OrigDate = Date;
+      const FIXED_TS = OrigDate.UTC(2026, 2, 7, 12, 0, 0); // March 7 2026 is a Saturday, 12:00 UTC
+      class MockDate extends OrigDate {
+        constructor(...args) {
+          if (args.length === 0) {
+            super(FIXED_TS);
+          } else {
+            super(...args);
+          }
+        }
+        static now() { return FIXED_TS; }
+      }
+      global.Date = MockDate;
+      global.fetch = ${fetchMock};
+      require(${JSON.stringify(SCRIPT_PATH)});
+    `;
+
+    const result = await runScriptWithCode(
+      {
+        SOURCE_REPO: "smoltbot",
+        SOURCE_REF: "abc1234567890",
+        GITHUB_TOKEN: "test-token",
+        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+      },
+      code
+    );
+
+    assert.strictEqual(result.exitCode, 0);
+    const score = extractScore(result.summary);
+    assert.ok(score !== null, "Should have a score in summary");
+    assert.ok(result.summary.includes("Weekend"), "Should mention weekend deploy");
+  });
+
+  it("reduces score for Friday afternoon deploys", async () => {
+    const fetchMock = ghApiFetchMock({
+      files: [{ filename: "src/index.ts", additions: 5, deletions: 5 }],
+      deployDaysAgo: 1,
+    });
+
+    const code = `
+      const OrigDate = Date;
+      const FIXED_TS = OrigDate.UTC(2026, 2, 6, 21, 0, 0); // March 6 2026 is a Friday, 21:00 UTC
+      class MockDate extends OrigDate {
+        constructor(...args) {
+          if (args.length === 0) {
+            super(FIXED_TS);
+          } else {
+            super(...args);
+          }
+        }
+        static now() { return FIXED_TS; }
+      }
+      global.Date = MockDate;
+      global.fetch = ${fetchMock};
+      require(${JSON.stringify(SCRIPT_PATH)});
+    `;
+
+    const result = await runScriptWithCode(
+      {
+        SOURCE_REPO: "smoltbot",
+        SOURCE_REF: "abc1234567890",
+        GITHUB_TOKEN: "test-token",
+        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+      },
+      code
+    );
+
+    assert.strictEqual(result.exitCode, 0);
+    const score = extractScore(result.summary);
+    assert.ok(score !== null, "Should have a score in summary");
+    assert.ok(result.summary.includes("Friday"), "Should mention Friday afternoon");
+    assert.ok(score <= 95, `Friday afternoon should reduce score, got ${score}`);
+  });
+
+  it("reduces score for late night deploys", async () => {
+    const fetchMock = ghApiFetchMock({
+      files: [{ filename: "src/index.ts", additions: 5, deletions: 5 }],
+      deployDaysAgo: 1,
+    });
+
+    const code = `
+      const OrigDate = Date;
+      const FIXED_TS = OrigDate.UTC(2026, 2, 3, 23, 0, 0); // March 3 2026 is a Tuesday, 23:00 UTC
+      class MockDate extends OrigDate {
+        constructor(...args) {
+          if (args.length === 0) {
+            super(FIXED_TS);
+          } else {
+            super(...args);
+          }
+        }
+        static now() { return FIXED_TS; }
+      }
+      global.Date = MockDate;
+      global.fetch = ${fetchMock};
+      require(${JSON.stringify(SCRIPT_PATH)});
+    `;
+
+    const result = await runScriptWithCode(
+      {
+        SOURCE_REPO: "smoltbot",
+        SOURCE_REF: "abc1234567890",
+        GITHUB_TOKEN: "test-token",
+        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+      },
+      code
+    );
+
+    assert.strictEqual(result.exitCode, 0);
+    const score = extractScore(result.summary);
+    assert.ok(score !== null, "Should have a score in summary");
+    assert.ok(result.summary.includes("Late night"), "Should mention late night");
   });
 });

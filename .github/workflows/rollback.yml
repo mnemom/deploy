@@ -31,6 +31,20 @@ jobs:
     timeout-minutes: 15
     environment: ${{ inputs.environment }}
     steps:
+      - uses: actions/checkout@v6
+
+      - name: "Notify: Rollback triggered"
+        if: env.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DEPLOY_EVENT: rollback_triggered
+          DEPLOY_SERVICES: ${{ inputs.service }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOY_STATUS: pending
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/notify-slack.js
+
       - uses: actions/create-github-app-token@v2
         id: app-token
         with:
@@ -181,3 +195,17 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+      # ── Notify ──
+
+      - name: "Notify: Rollback complete"
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DEPLOY_EVENT: rollback_complete
+          DEPLOY_SERVICES: ${{ inputs.service }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOY_STATUS: ${{ job.status == 'success' && 'success' || 'failure' }}
+          DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/notify-slack.js
