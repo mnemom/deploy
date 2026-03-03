@@ -14,7 +14,8 @@ jobs:
       - name: Install actionlint
         run: |
           mkdir -p "$HOME/.local/bin"
-          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-bash.sh) "$HOME/.local/bin"
+          LATEST=$(curl -s https://api.github.com/repos/rhysd/actionlint/releases/latest | grep tag_name | cut -d '"' -f4)
+          curl -sL "https://github.com/rhysd/actionlint/releases/download/${LATEST}/actionlint_${LATEST#v}_linux_amd64.tar.gz" | tar xz -C "$HOME/.local/bin" actionlint
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run actionlint
         run: actionlint
