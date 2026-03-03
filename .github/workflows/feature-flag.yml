@@ -28,8 +28,12 @@ on:
           - staging
           - production
 
+
+permissions: {}
 jobs:
   manage-flag:
+    permissions:
+      contents: read
     name: "${{ inputs.action }} flag (${{ inputs.environment }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -51,7 +55,7 @@ jobs:
             echo "namespace-id=${{ secrets.FEATURE_FLAGS_KV_PRODUCTION_ID }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
         with:
           node-version: "20"
 

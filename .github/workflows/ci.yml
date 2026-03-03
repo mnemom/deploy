@@ -5,23 +5,29 @@ on:
   pull_request:
     branches: [main]
 
+
+permissions: {}
 jobs:
   validate-workflows:
+    permissions:
+      contents: read
     name: Validate Workflows
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Run actionlint
-        uses: raven-actions/actionlint@v2
+        uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8 # v2
         with:
           shellcheck: false
 
   lint:
+    permissions:
+      contents: read
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
         with:
           node-version: 20
           cache: npm
@@ -29,11 +35,13 @@ jobs:
       - run: npx eslint scripts/
 
   syntax-check:
+    permissions:
+      contents: read
     name: Syntax Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
         with:
           node-version: 20
       - name: Check JS syntax
@@ -44,18 +52,20 @@ jobs:
           done
 
   test:
+    permissions:
+      contents: read
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
         with:
           node-version: 20
           cache: npm
       - run: npm ci
       - run: npm run test:coverage
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

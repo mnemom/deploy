@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   codeql:
+    permissions:
+      contents: read
+      security-events: write
     uses: mnemom/.github/.github/workflows/security-scan.yml@main
     with:
       languages: "javascript-typescript"

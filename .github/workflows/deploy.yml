@@ -18,6 +18,8 @@ on:
           - staging
           - production
 
+
+permissions: {}
 concurrency:
   group: deploy-${{ github.event.client_payload.repo || inputs.repos || 'manual' }}-${{ github.event.client_payload.environment || inputs.environment || 'staging' }}
   cancel-in-progress: false
@@ -27,6 +29,8 @@ jobs:
   # Plan: determine what to deploy and where
   # ─────────────────────────────────────────────
   plan:
+    permissions:
+      contents: read
     name: Plan
     runs-on: ubuntu-latest
     outputs:
@@ -226,6 +230,8 @@ jobs:
   # ─────────────────────────────────────────────
 
   staging-complete:
+    permissions:
+      contents: read
     name: "Staging Complete"
     needs: [staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website]
     if: always()
@@ -255,6 +261,8 @@ jobs:
   # ─────────────────────────────────────────────
 
   confidence:
+    permissions:
+      contents: read
     name: "Confidence Score"
     needs: [plan, staging-complete]
     if: >-
@@ -263,8 +271,8 @@ jobs:
       needs.staging-complete.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOY_APP_ID }}
@@ -573,6 +581,8 @@ jobs:
   # ─────────────────────────────────────────────
 
   summary:
+    permissions:
+      contents: read
     name: Deploy Complete
     if: always()
     needs: [plan, staging-complete, confidence, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
