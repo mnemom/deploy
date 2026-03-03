@@ -1,0 +1,13 @@
+{
+  "name": "@mnemom/deploy",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test scripts/__tests__/*.test.js",
+    "lint": "eslint scripts/"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0"
+  }
+}
