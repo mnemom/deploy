@@ -7,10 +7,6 @@ on:
         description: "Source repository (e.g. mnemom/mnemom-reputation)"
         required: true
         type: string
-      environment:
-        description: "Target environment (gates approval for production)"
-        required: true
-        type: string
       ref:
         description: "Git ref in source repo (used for logging only)"
         required: false
@@ -39,7 +35,6 @@ jobs:
     name: "Dispatch → ${{ inputs.repository }}"
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.environment }}
     steps:
       - name: Create GitHub App token
         uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
