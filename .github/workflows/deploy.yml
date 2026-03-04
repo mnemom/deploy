@@ -348,6 +348,7 @@ jobs:
     with:
       repository: mnemom/mnemom-types
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-types' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: typescript
     secrets: inherit
 
   staging-aap-publish:
