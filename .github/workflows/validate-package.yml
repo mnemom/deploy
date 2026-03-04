@@ -1,0 +1,63 @@
+name: Validate Package (build + pack dry-run)
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Source repository (e.g. mnemom/mnemom-reputation)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout"
+        required: false
+        type: string
+        default: "main"
+      npm-directory:
+        description: "Directory containing the package.json to validate"
+        required: false
+        type: string
+        default: "."
+      pre-install-command:
+        description: "Command to run before npm ci (e.g. build shared deps)"
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        with:
+          node-version: "20"
+
+      - name: Pre-install
+        if: inputs.pre-install-command != ''
+        run: ${{ inputs.pre-install-command }}
+
+      - run: npm ci
+        working-directory: ${{ inputs.npm-directory }}
+
+      - name: Build
+        run: npm run build --if-present
+        working-directory: ${{ inputs.npm-directory }}
+
+      - name: Validate package (dry-run)
+        run: npm pack --dry-run
+        working-directory: ${{ inputs.npm-directory }}

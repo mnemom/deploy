@@ -48,8 +48,6 @@ jobs:
       deploy-aip: ${{ steps.plan.outputs.deploy-aip }}
       deploy-aip-otel-exporter: ${{ steps.plan.outputs.deploy-aip-otel-exporter }}
       deploy-mnemom-types: ${{ steps.plan.outputs.deploy-mnemom-types }}
-      deploy-mnemom-reputation-sdk: ${{ steps.plan.outputs.deploy-mnemom-reputation-sdk }}
-      deploy-mnemom-risk-sdk: ${{ steps.plan.outputs.deploy-mnemom-risk-sdk }}
       promote: ${{ steps.plan.outputs.promote }}
       source-ref: ${{ steps.plan.outputs.source-ref }}
       source-repo: ${{ steps.plan.outputs.source-repo }}
@@ -104,8 +102,6 @@ jobs:
             set_deploy "aip"
             set_deploy "aip-otel-exporter"
             set_deploy "mnemom-types"
-            set_deploy "mnemom-reputation-sdk"
-            set_deploy "mnemom-risk-sdk"
           else
             # Handle comma-separated list or single repo from dispatch
             # Note: unknown repo names are accepted here by design — they simply
@@ -113,11 +109,6 @@ jobs:
             for r in $(echo "$REPO" | tr ',' ' '); do
               r=$(normalize "$(echo "$r" | xargs)")
               set_deploy "$r"
-              # Also deploy client SDK when the parent repo is deployed
-              case "$r" in
-                mnemom-reputation) set_deploy "mnemom-reputation-sdk" ;;
-                mnemom-risk) set_deploy "mnemom-risk-sdk" ;;
-              esac
             done
           fi
 
@@ -312,12 +303,136 @@ jobs:
     secrets: inherit
 
   # ─────────────────────────────────────────────
+  # Staging Tier 3 — Package validation (parallel)
+  # ─────────────────────────────────────────────
+
+  staging-reputation-publish:
+    name: "staging / reputation (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/mnemom-reputation
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: client/typescript
+    secrets: inherit
+
+  staging-risk-publish:
+    name: "staging / risk (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-risk == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/mnemom-risk
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: client/typescript
+    secrets: inherit
+
+  staging-types-publish:
+    name: "staging / types (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-mnemom-types == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/mnemom-types
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-types' && needs.plan.outputs.source-ref || 'main' }}
+    secrets: inherit
+
+  staging-aap-publish:
+    name: "staging / aap (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-aap == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/aap
+      ref: ${{ needs.plan.outputs.source-repo == 'aap' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: typescript
+    secrets: inherit
+
+  staging-aip-publish:
+    name: "staging / aip (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-aip == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/aip
+      ref: ${{ needs.plan.outputs.source-repo == 'aip' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: packages/typescript
+    secrets: inherit
+
+  staging-otel-publish:
+    name: "staging / otel (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-aip-otel-exporter == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/aip-otel-exporter
+      ref: ${{ needs.plan.outputs.source-repo == 'aip-otel-exporter' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: packages/typescript
+    secrets: inherit
+
+  staging-policy-engine-publish:
+    name: "staging / policy-engine (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: shared/policy-engine
+    secrets: inherit
+
+  staging-cli-publish:
+    name: "staging / cli (validate publish)"
+    needs: [plan, verify-ci]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.verify-ci.result != 'failure' &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/validate-package.yml
+    with:
+      repository: mnemom/smoltbot
+      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      npm-directory: cli
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+    secrets: inherit
+
+  # ─────────────────────────────────────────────
   # Staging Gate
   # ─────────────────────────────────────────────
 
   staging-complete:
     name: "Staging Complete"
-    needs: [verify-ci, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website]
+    needs: [verify-ci, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website, staging-reputation-publish, staging-risk-publish, staging-types-publish, staging-aap-publish, staging-aip-publish, staging-otel-publish, staging-policy-engine-publish, staging-cli-publish]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -335,6 +450,14 @@ jobs:
           echo "| risk | ${{ needs.staging-risk.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| prover | ${{ needs.staging-prover.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| website | ${{ needs.staging-website.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| reputation (validate publish) | ${{ needs.staging-reputation-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| risk (validate publish) | ${{ needs.staging-risk-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| types (validate publish) | ${{ needs.staging-types-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| aap (validate publish) | ${{ needs.staging-aap-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| aip (validate publish) | ${{ needs.staging-aip-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| otel (validate publish) | ${{ needs.staging-otel-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| policy-engine (validate publish) | ${{ needs.staging-policy-engine-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| cli (validate publish) | ${{ needs.staging-cli-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
       - name: Check for failures
         if: contains(needs.*.result, 'failure')
         run: |
@@ -530,12 +653,12 @@ jobs:
       npm-directory: shared/policy-engine
     secrets: inherit
 
-  prod-reputation-sdk:
-    name: "prod / reputation-sdk (publish)"
+  prod-reputation-publish:
+    name: "prod / reputation (publish)"
     needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-mnemom-reputation-sdk == 'true' &&
+      needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
@@ -545,12 +668,12 @@ jobs:
       npm-directory: client/typescript
     secrets: inherit
 
-  prod-risk-sdk:
-    name: "prod / risk-sdk (publish)"
+  prod-risk-publish:
+    name: "prod / risk (publish)"
     needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-mnemom-risk-sdk == 'true' &&
+      needs.plan.outputs.deploy-mnemom-risk == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
@@ -632,8 +755,8 @@ jobs:
 
   prod-reputation:
     name: "prod / reputation"
-    # SDK published first so version matches the API the Worker serves
-    needs: [plan, staging-complete, prod-reputation-sdk]
+    # Package published first so version matches the API the Worker serves
+    needs: [plan, staging-complete, prod-reputation-publish]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-reputation == 'true' &&
@@ -654,8 +777,8 @@ jobs:
 
   prod-risk:
     name: "prod / risk"
-    # deps: @mnemom/types (npm), SDK published first
-    needs: [plan, staging-complete, prod-types, prod-risk-sdk]
+    # deps: @mnemom/types (npm), package published first
+    needs: [plan, staging-complete, prod-types, prod-risk-publish]
     if: >-
       always() &&
       needs.plan.outputs.deploy-mnemom-risk == 'true' &&
@@ -754,7 +877,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always() && github.event.inputs.dry-run != 'true'
-    needs: [plan, verify-ci, staging-complete, e2e, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-sdk, prod-risk-sdk, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, verify-ci, staging-complete, e2e, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-publish, prod-risk-publish, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -781,8 +904,8 @@ jobs:
             echo "| aip | ${{ needs.prod-aip.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| aip-otel-exporter | ${{ needs.prod-otel.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| policy-engine | ${{ needs.prod-policy-engine.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| reputation-sdk | ${{ needs.prod-reputation-sdk.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| risk-sdk | ${{ needs.prod-risk-sdk.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| reputation (publish) | ${{ needs.prod-reputation-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| risk (publish) | ${{ needs.prod-risk-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| gateway | ${{ needs.prod-gateway.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| observer | ${{ needs.prod-observer.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| api | ${{ needs.prod-api.result }} |" >> "$GITHUB_STEP_SUMMARY"
