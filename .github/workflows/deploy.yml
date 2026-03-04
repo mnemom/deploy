@@ -594,7 +594,6 @@ jobs:
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/mnemom-types
-      environment: production
     secrets: inherit
 
   prod-aap:
@@ -609,7 +608,6 @@ jobs:
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aap
-      environment: production
     secrets: inherit
 
   prod-aip:
@@ -624,7 +622,6 @@ jobs:
     uses: ./.github/workflows/dispatch-publish.yml
     with:
       repository: mnemom/aip
-      environment: production
     secrets: inherit
 
   prod-otel:
@@ -640,7 +637,6 @@ jobs:
     with:
       repository: mnemom/aip-otel-exporter
       npm-directory: packages/typescript
-      environment: production
     secrets: inherit
 
   prod-policy-engine:
@@ -656,7 +652,6 @@ jobs:
     with:
       repository: mnemom/smoltbot
       npm-directory: shared/policy-engine
-      environment: production
     secrets: inherit
 
   prod-reputation-publish:
@@ -672,7 +667,6 @@ jobs:
     with:
       repository: mnemom/mnemom-reputation
       npm-directory: client/typescript
-      environment: production
     secrets: inherit
 
   prod-risk-publish:
@@ -688,7 +682,6 @@ jobs:
     with:
       repository: mnemom/mnemom-risk
       npm-directory: client/typescript
-      environment: production
     secrets: inherit
 
   # ─────────────────────────────────────────────
@@ -859,7 +852,6 @@ jobs:
     with:
       repository: mnemom/smoltbot
       npm-directory: cli
-      environment: production
     secrets: inherit
 
   prod-hunter:
