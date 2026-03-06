@@ -1,0 +1,73 @@
+name: Deploy trigger.dev
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: "Source repository (org/repo)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to checkout"
+        required: true
+        type: string
+      environment:
+        description: "Target environment"
+        type: string
+        default: "staging"
+      health-check-url:
+        description: "URL to curl after deploy (expects JSON with status:ok)"
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: mnemom
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy to trigger.dev
+        run: npx trigger.dev@latest deploy
+        env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+
+      - name: Health check
+        if: inputs.health-check-url != ''
+        run: |
+          # trigger.dev deploys are near-instant, no long cold-start
+          for i in $(seq 1 6); do
+            HTTP_STATUS=$(curl -sf -o /dev/null -w '%{http_code}' --max-time 15 "${{ inputs.health-check-url }}" 2>/dev/null || true)
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Health check passed (${{ inputs.health-check-url }})"
+              exit 0
+            fi
+            echo "Attempt $i/6: HTTP $HTTP_STATUS — retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Health check failed after 6 attempts (${{ inputs.health-check-url }})"
+          exit 1

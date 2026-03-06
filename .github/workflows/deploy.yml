@@ -44,6 +44,7 @@ jobs:
       deploy-mnemom-prover: ${{ steps.plan.outputs.deploy-mnemom-prover }}
       deploy-mnemom-website: ${{ steps.plan.outputs.deploy-mnemom-website }}
       deploy-hunter: ${{ steps.plan.outputs.deploy-hunter }}
+      deploy-arena-simulator: ${{ steps.plan.outputs.deploy-arena-simulator }}
       deploy-aap: ${{ steps.plan.outputs.deploy-aap }}
       deploy-aip: ${{ steps.plan.outputs.deploy-aip }}
       deploy-aip-otel-exporter: ${{ steps.plan.outputs.deploy-aip-otel-exporter }}
@@ -101,6 +102,7 @@ jobs:
             set_deploy "aap"
             set_deploy "aip"
             set_deploy "aip-otel-exporter"
+            set_deploy "arena-simulator"
             set_deploy "mnemom-types"
           else
             # Handle comma-separated list or single repo from dispatch
@@ -302,6 +304,22 @@ jobs:
       health-check-url: https://mnemom-staging.netlify.app
     secrets: inherit
 
+  staging-arena-simulator:
+    name: "staging / arena-simulator"
+    needs: [plan, verify-ci, staging-gateway, staging-api]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-arena-simulator == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/deploy-trigger-dev.yml
+    with:
+      repository: mnemom/arena-simulator
+      ref: ${{ needs.plan.outputs.source-repo == 'arena-simulator' && needs.plan.outputs.source-ref || 'main' }}
+      environment: staging
+      # arena-simulator is a cron worker — no HTTP health check
+    secrets: inherit
+
   # ─────────────────────────────────────────────
   # Staging Tier 3 — Package validation (parallel)
   # ─────────────────────────────────────────────
@@ -433,7 +451,7 @@ jobs:
 
   staging-complete:
     name: "Staging Complete"
-    needs: [verify-ci, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website, staging-reputation-publish, staging-risk-publish, staging-types-publish, staging-aap-publish, staging-aip-publish, staging-otel-publish, staging-policy-engine-publish, staging-cli-publish]
+    needs: [verify-ci, staging-gateway, staging-observer, staging-api, staging-reputation, staging-risk, staging-prover, staging-website, staging-arena-simulator, staging-reputation-publish, staging-risk-publish, staging-types-publish, staging-aap-publish, staging-aip-publish, staging-otel-publish, staging-policy-engine-publish, staging-cli-publish]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -451,6 +469,7 @@ jobs:
           echo "| risk | ${{ needs.staging-risk.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| prover | ${{ needs.staging-prover.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| website | ${{ needs.staging-website.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| arena-simulator | ${{ needs.staging-arena-simulator.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| reputation (validate publish) | ${{ needs.staging-reputation-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| risk (validate publish) | ${{ needs.staging-risk-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| types (validate publish) | ${{ needs.staging-types-publish.result }} |" >> "$GITHUB_STEP_SUMMARY"
@@ -549,7 +568,8 @@ jobs:
               "mnemom-risk": ${{ needs.plan.outputs.deploy-mnemom-risk == 'true' }},
               "mnemom-website": ${{ needs.plan.outputs.deploy-mnemom-website == 'true' }},
               "mnemom-prover": ${{ needs.plan.outputs.deploy-mnemom-prover == 'true' }},
-              "hunter": ${{ needs.plan.outputs.deploy-hunter == 'true' }}
+              "hunter": ${{ needs.plan.outputs.deploy-hunter == 'true' }},
+              "arena-simulator": ${{ needs.plan.outputs.deploy-arena-simulator == 'true' }}
             }
         run: node scripts/confidence-score.js
 
@@ -871,6 +891,24 @@ jobs:
       environment: production
     secrets: inherit
 
+  prod-arena-simulator:
+    name: "prod / arena-simulator"
+    # runtime deps: gateway.mnemom.ai (trace submission), api.mnemom.ai (arena endpoints)
+    needs: [plan, staging-complete, prod-gateway, prod-api]
+    if: >-
+      always() &&
+      needs.plan.outputs.deploy-arena-simulator == 'true' &&
+      needs.plan.outputs.promote == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      github.event.inputs.dry-run != 'true'
+    uses: ./.github/workflows/deploy-trigger-dev.yml
+    with:
+      repository: mnemom/arena-simulator
+      ref: ${{ needs.plan.outputs.source-repo == 'arena-simulator' && needs.plan.outputs.source-ref || 'main' }}
+      environment: production
+      # arena-simulator is a cron worker — no HTTP health check
+    secrets: inherit
+
   # ─────────────────────────────────────────────
   # Summary
   # ─────────────────────────────────────────────
@@ -878,7 +916,7 @@ jobs:
   summary:
     name: Deploy Complete
     if: always() && github.event.inputs.dry-run != 'true'
-    needs: [plan, verify-ci, staging-complete, e2e, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-publish, prod-risk-publish, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter]
+    needs: [plan, verify-ci, staging-complete, e2e, confidence, dry-run-summary, prod-types, prod-aap, prod-aip, prod-otel, prod-policy-engine, prod-reputation-publish, prod-risk-publish, prod-gateway, prod-observer, prod-api, prod-reputation, prod-risk, prod-prover, prod-website, prod-cli, prod-hunter, prod-arena-simulator]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -916,6 +954,7 @@ jobs:
             echo "| website | ${{ needs.prod-website.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| cli | ${{ needs.prod-cli.result }} |" >> "$GITHUB_STEP_SUMMARY"
             echo "| hunter | ${{ needs.prod-hunter.result }} |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| arena-simulator | ${{ needs.prod-arena-simulator.result }} |" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Write audit trail
         if: always()
