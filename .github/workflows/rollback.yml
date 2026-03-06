@@ -228,7 +228,7 @@ jobs:
           echo "Redeploying previous commit ($(git rev-parse --short HEAD))"
           npx trigger.dev@latest deploy
         env:
-          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
 
       # ── Notify ──
 

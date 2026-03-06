@@ -54,7 +54,7 @@ jobs:
       - name: Deploy to trigger.dev
         run: npx trigger.dev@latest deploy
         env:
-          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
 
       - name: Health check
         if: inputs.health-check-url != ''
