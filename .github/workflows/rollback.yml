@@ -16,6 +16,7 @@ on:
           - website
           - hunter
           - prover
+          - arena-simulator
       environment:
         description: "Environment"
         required: true
@@ -93,6 +94,10 @@ jobs:
             prover)
               echo "platform=modal" >> "$GITHUB_OUTPUT"
               echo "repository=mnemom/mnemom-prover" >> "$GITHUB_OUTPUT"
+              ;;
+            arena-simulator)
+              echo "platform=trigger-dev" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/arena-simulator" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -197,6 +202,33 @@ jobs:
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+      # ── trigger.dev ──
+
+      - name: Checkout (trigger.dev)
+        if: steps.config.outputs.platform == 'trigger-dev'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          repository: ${{ steps.config.outputs.repository }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 2
+
+      - name: Setup Node (trigger.dev)
+        if: steps.config.outputs.platform == 'trigger-dev'
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        with:
+          node-version: "20"
+
+      - name: Rollback trigger.dev
+        if: steps.config.outputs.platform == 'trigger-dev'
+        run: |
+          git checkout HEAD~1
+          corepack enable && corepack prepare pnpm@latest --activate
+          pnpm install --frozen-lockfile
+          echo "Redeploying previous commit ($(git rev-parse --short HEAD))"
+          npx trigger.dev@latest deploy
+        env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
 
       # ── Notify ──
 
