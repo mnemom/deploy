@@ -52,7 +52,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Deploy to trigger.dev
-        run: npx trigger.dev@latest deploy
+        run: npx trigger.dev@3 deploy
         env:
           TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
 

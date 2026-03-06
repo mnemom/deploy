@@ -226,7 +226,7 @@ jobs:
           corepack enable && corepack prepare pnpm@latest --activate
           pnpm install --frozen-lockfile
           echo "Redeploying previous commit ($(git rev-parse --short HEAD))"
-          npx trigger.dev@latest deploy
+          npx trigger.dev@3 deploy
         env:
           TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
 
