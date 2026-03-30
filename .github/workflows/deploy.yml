@@ -194,7 +194,7 @@ jobs:
       ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       environment: staging
       working-directory: gateway
-      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../cfd && npm ci && npm run build"
       cache-dependency-path: gateway/package-lock.json
       health-check-url: https://gateway-staging.mnemom.ai/health
     secrets: inherit
@@ -213,7 +213,7 @@ jobs:
       ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       environment: staging
       working-directory: observer
-      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../cfd && npm ci && npm run build"
       cache-dependency-path: observer/package-lock.json
       # observer is a cron worker — no HTTP health check
     secrets: inherit
@@ -442,7 +442,7 @@ jobs:
       repository: mnemom/smoltbot
       ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       npm-directory: cli
-      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../cfd && npm ci && npm run build"
     secrets: inherit
 
   # ─────────────────────────────────────────────
@@ -725,7 +725,7 @@ jobs:
       ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       environment: production
       working-directory: gateway
-      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../cfd && npm ci && npm run build"
       cache-dependency-path: gateway/package-lock.json
       health-check-url: https://gateway.mnemom.ai/health
       script-name: smoltbot-gateway
@@ -749,7 +749,7 @@ jobs:
       ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
       environment: production
       working-directory: observer
-      pre-install-command: "cd shared/policy-engine && npm ci && npm run build"
+      pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../cfd && npm ci && npm run build"
       cache-dependency-path: observer/package-lock.json
       # observer is a cron worker — no HTTP health check
     secrets: inherit
