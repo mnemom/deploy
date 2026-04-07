@@ -78,6 +78,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: ${{ inputs.working-directory }}
+          wranglerVersion: "4"   # pin to 4.x — runner pre-installed version is non-deterministic
           command: deploy --env ${{ inputs.environment }}
 
       - name: Health check
