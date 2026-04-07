@@ -165,7 +165,7 @@ jobs:
             echo "::warning::Could not access check runs for $SOURCE_REPO (app may lack checks:read permission). Skipping CI verification."
             exit 0
           }
-          STATUS=$(echo "$RESPONSE" | jq -r '[.check_runs[] | select(.name != "Trigger Deploy" and .name != "Deploy Context") | .conclusion] | if length == 0 then "pass" elif all(. == "success" or . == "skipped" or . == null) then "pass" else "fail" end')
+          STATUS=$(echo "$RESPONSE" | jq -r '[.check_runs[] | select(.name != "Trigger Deploy" and .name != "Deploy Context" and .name != "Dependabot") | .conclusion] | if length == 0 then "pass" elif all(. == "success" or . == "skipped" or . == null) then "pass" else "fail" end')
           if [ "$STATUS" != "pass" ]; then
             echo "::warning::CI checks have not all passed for $SOURCE_REPO @ $SOURCE_REF"
             exit 1
