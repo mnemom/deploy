@@ -232,6 +232,7 @@ jobs:
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
       environment: staging
       health-check-url: https://api-staging.mnemom.ai/health
+      pre-install-command: "git clone https://x-access-token:$GH_TOKEN@github.com/mnemom/smoltbot.git ../smoltbot --depth 1 && cd ../smoltbot/shared/cfd && npm ci && npm run build"
     secrets: inherit
 
   staging-reputation:
@@ -772,6 +773,7 @@ jobs:
       health-check-url: https://api.mnemom.ai/health
       script-name: mnemom-api
       service-name: api
+      pre-install-command: "git clone https://x-access-token:$GH_TOKEN@github.com/mnemom/smoltbot.git ../smoltbot --depth 1 && cd ../smoltbot/shared/cfd && npm ci && npm run build"
     secrets: inherit
 
   prod-reputation:

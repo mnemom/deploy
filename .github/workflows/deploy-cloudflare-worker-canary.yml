@@ -119,6 +119,8 @@ jobs:
 
       - name: Pre-install
         if: inputs.pre-install-command != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: ${{ inputs.pre-install-command }}
 
       - run: npm ci
