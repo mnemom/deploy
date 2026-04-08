@@ -77,7 +77,7 @@ function writeSummary(content) {
 async function main() {
   const repo = process.env.SOURCE_REPO;
   const sha = process.env.SOURCE_REF;
-  let deployFlags = {};
+  let deployFlags;
 
   try {
     deployFlags = JSON.parse(process.env.DEPLOY_FLAGS || "{}");
