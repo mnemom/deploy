@@ -720,7 +720,7 @@ jobs:
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
-    uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/smoltbot
       ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
@@ -729,8 +729,6 @@ jobs:
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../cfd && npm ci && npm run build"
       cache-dependency-path: gateway/package-lock.json
       health-check-url: https://gateway.mnemom.ai/health
-      script-name: smoltbot-gateway
-      service-name: gateway
     secrets: inherit
 
   prod-observer:
@@ -765,14 +763,12 @@ jobs:
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
-    uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/mnemom-api
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-api' && needs.plan.outputs.source-ref || 'main' }}
       environment: production
       health-check-url: https://api.mnemom.ai/health
-      script-name: mnemom-api
-      service-name: api
       pre-install-command: "git clone https://x-access-token:$GH_TOKEN@github.com/mnemom/smoltbot.git ../smoltbot --depth 1 && cd ../smoltbot/shared/cfd && npm ci && npm run build"
     secrets: inherit
 
@@ -786,7 +782,7 @@ jobs:
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
-    uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/mnemom-reputation
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-reputation' && needs.plan.outputs.source-ref || 'main' }}
@@ -794,8 +790,6 @@ jobs:
       working-directory: server
       cache-dependency-path: server/package-lock.json
       health-check-url: https://reputation.mnemom.ai/health
-      script-name: mnemom-reputation
-      service-name: reputation
     secrets: inherit
 
   prod-risk:
@@ -808,7 +802,7 @@ jobs:
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
-    uses: ./.github/workflows/deploy-cloudflare-worker-canary.yml
+    uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
       repository: mnemom/mnemom-risk
       ref: ${{ needs.plan.outputs.source-repo == 'mnemom-risk' && needs.plan.outputs.source-ref || 'main' }}
@@ -816,8 +810,6 @@ jobs:
       working-directory: server
       cache-dependency-path: server/package-lock.json
       health-check-url: https://risk.mnemom.ai/health
-      script-name: mnemom-risk
-      service-name: risk
     secrets: inherit
 
   prod-prover:
