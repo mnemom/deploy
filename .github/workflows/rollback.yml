@@ -48,7 +48,7 @@ jobs:
           DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/notify-slack.js
 
-      - uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+      - uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v2
         id: app-token
         with:
           app-id: ${{ secrets.DEPLOY_APP_ID }}
@@ -112,7 +112,7 @@ jobs:
 
       - name: Setup Node
         if: steps.config.outputs.platform == 'cloudflare'
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: "20"
 
@@ -215,7 +215,7 @@ jobs:
 
       - name: Setup Node (trigger.dev)
         if: steps.config.outputs.platform == 'trigger-dev'
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: "20"
 
