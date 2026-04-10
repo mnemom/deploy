@@ -61,12 +61,12 @@ jobs:
           case "${{ inputs.service }}" in
             gateway)
               echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
-              echo "repository=mnemom/smoltbot" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/mnemom-platform" >> "$GITHUB_OUTPUT"
               echo "directory=gateway" >> "$GITHUB_OUTPUT"
               ;;
             observer)
               echo "platform=cloudflare" >> "$GITHUB_OUTPUT"
-              echo "repository=mnemom/smoltbot" >> "$GITHUB_OUTPUT"
+              echo "repository=mnemom/mnemom-platform" >> "$GITHUB_OUTPUT"
               echo "directory=observer" >> "$GITHUB_OUTPUT"
               ;;
             api)
