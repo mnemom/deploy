@@ -37,7 +37,7 @@ jobs:
     name: Plan
     runs-on: ubuntu-latest
     outputs:
-      deploy-smoltbot: ${{ steps.plan.outputs.deploy-smoltbot }}
+      deploy-mnemom-platform: ${{ steps.plan.outputs.deploy-mnemom-platform }}
       deploy-mnemom-api: ${{ steps.plan.outputs.deploy-mnemom-api }}
       deploy-mnemom-reputation: ${{ steps.plan.outputs.deploy-mnemom-reputation }}
       deploy-mnemom-risk: ${{ steps.plan.outputs.deploy-mnemom-risk }}
@@ -92,7 +92,7 @@ jobs:
           echo "Deploy plan (promote=$ENV):"
 
           if [ "$REPO" = "all" ]; then
-            set_deploy "smoltbot"
+            set_deploy "mnemom-platform"
             set_deploy "mnemom-api"
             set_deploy "mnemom-reputation"
             set_deploy "mnemom-risk"
@@ -185,13 +185,13 @@ jobs:
     needs: [plan, verify-ci]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.verify-ci.result != 'failure' &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      repository: mnemom/mnemom-platform
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-platform' && needs.plan.outputs.source-ref || 'main' }}
       environment: staging
       working-directory: gateway
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../safe-house && npm ci && npm run build"
@@ -204,13 +204,13 @@ jobs:
     needs: [plan, verify-ci]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.verify-ci.result != 'failure' &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      repository: mnemom/mnemom-platform
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-platform' && needs.plan.outputs.source-ref || 'main' }}
       environment: staging
       working-directory: observer
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../safe-house && npm ci && npm run build"
@@ -419,13 +419,13 @@ jobs:
     needs: [plan, verify-ci]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.verify-ci.result != 'failure' &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/validate-package.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      repository: mnemom/mnemom-platform
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-platform' && needs.plan.outputs.source-ref || 'main' }}
       npm-directory: shared/policy-engine
     secrets: inherit
 
@@ -434,13 +434,13 @@ jobs:
     needs: [plan, verify-ci]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.verify-ci.result != 'failure' &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/validate-package.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      repository: mnemom/mnemom-platform
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-platform' && needs.plan.outputs.source-ref || 'main' }}
       npm-directory: cli
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../safe-house && npm ci && npm run build"
     secrets: inherit
@@ -562,7 +562,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           DEPLOY_FLAGS: >-
             {
-              "smoltbot": ${{ needs.plan.outputs.deploy-smoltbot == 'true' }},
+              "mnemom-platform": ${{ needs.plan.outputs.deploy-mnemom-platform == 'true' }},
               "mnemom-api": ${{ needs.plan.outputs.deploy-mnemom-api == 'true' }},
               "mnemom-reputation": ${{ needs.plan.outputs.deploy-mnemom-reputation == 'true' }},
               "mnemom-risk": ${{ needs.plan.outputs.deploy-mnemom-risk == 'true' }},
@@ -664,13 +664,13 @@ jobs:
     needs: [plan, staging-complete, e2e]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
-      repository: mnemom/smoltbot
+      repository: mnemom/mnemom-platform
       npm-directory: shared/policy-engine
     secrets: inherit
 
@@ -715,14 +715,14 @@ jobs:
     needs: [plan, staging-complete, prod-aip, prod-otel]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      repository: mnemom/mnemom-platform
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-platform' && needs.plan.outputs.source-ref || 'main' }}
       environment: production
       working-directory: gateway
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../safe-house && npm ci && npm run build"
@@ -737,14 +737,14 @@ jobs:
     needs: [plan, staging-complete, prod-aap, prod-otel]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/deploy-cloudflare-worker.yml
     with:
-      repository: mnemom/smoltbot
-      ref: ${{ needs.plan.outputs.source-repo == 'smoltbot' && needs.plan.outputs.source-ref || 'main' }}
+      repository: mnemom/mnemom-platform
+      ref: ${{ needs.plan.outputs.source-repo == 'mnemom-platform' && needs.plan.outputs.source-ref || 'main' }}
       environment: production
       working-directory: observer
       pre-install-command: "cd shared/policy-engine && npm ci && npm run build && cd ../safe-house && npm ci && npm run build"
@@ -856,13 +856,13 @@ jobs:
     needs: [plan, staging-complete, prod-gateway, prod-api]
     if: >-
       always() &&
-      needs.plan.outputs.deploy-smoltbot == 'true' &&
+      needs.plan.outputs.deploy-mnemom-platform == 'true' &&
       needs.plan.outputs.promote == 'true' &&
       !contains(needs.*.result, 'failure') &&
       github.event.inputs.dry-run != 'true'
     uses: ./.github/workflows/dispatch-publish.yml
     with:
-      repository: mnemom/smoltbot
+      repository: mnemom/mnemom-platform
       npm-directory: cli
     secrets: inherit
 
