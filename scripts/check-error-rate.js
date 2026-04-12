@@ -7,7 +7,7 @@
 // Inputs (env vars):
 //   CLOUDFLARE_API_TOKEN   — API token with Analytics:Read
 //   CLOUDFLARE_ACCOUNT_ID  — Cloudflare account ID
-//   SCRIPT_NAME            — Worker script name (e.g. "smoltbot-gateway")
+//   SCRIPT_NAME            — Worker script name (e.g. "mnemom-gateway")
 //   OBSERVATION_SECONDS    — Time window to check (default: 60)
 //   ERROR_THRESHOLD        — Max error rate before failing (default: 0.05)
 //

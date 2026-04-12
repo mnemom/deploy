@@ -4,7 +4,7 @@
 // GitHub Step Summary to inform the human before they approve production.
 //
 // Inputs (env vars):
-//   SOURCE_REPO  — repo name (e.g. "smoltbot")
+//   SOURCE_REPO  — repo name (e.g. "mnemom-platform")
 //   SOURCE_REF   — commit SHA
 //   GITHUB_TOKEN — app token for cross-repo API access
 //   DEPLOY_FLAGS — JSON object of which services are being deployed
@@ -56,7 +56,7 @@ async function getDaysSinceLastProdDeploy(repo) {
 function countServicesAffected(deployFlags) {
   // Count services (exclude SDK/package-only flags)
   const serviceKeys = [
-    "smoltbot",
+    "mnemom-platform",
     "mnemom-api",
     "mnemom-reputation",
     "mnemom-risk",

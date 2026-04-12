@@ -145,10 +145,10 @@ describe("confidence-score", () => {
 
     const result = await runScript(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       fetchMock
     );
@@ -174,10 +174,10 @@ describe("confidence-score", () => {
 
     const result = await runScript(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       fetchMock
     );
@@ -197,11 +197,11 @@ describe("confidence-score", () => {
 
     const result = await runScript(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
         DEPLOY_FLAGS: JSON.stringify({
-          smoltbot: true,
+          "mnemom-platform": true,
           "mnemom-api": true,
           "mnemom-reputation": true,
           "mnemom-risk": true,
@@ -239,7 +239,7 @@ describe("confidence-score", () => {
 
     const result = await runScript(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
         DEPLOY_FLAGS: "{}",
@@ -261,10 +261,10 @@ describe("confidence-score", () => {
 
     const result = await runScript(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       fetchMock
     );
@@ -284,10 +284,10 @@ describe("confidence-score", () => {
 
     const result = await runScript(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       fetchMock
     );
@@ -324,10 +324,10 @@ describe("confidence-score", () => {
 
     const result = await runScriptWithCode(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       code
     );
@@ -364,10 +364,10 @@ describe("confidence-score", () => {
 
     const result = await runScriptWithCode(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       code
     );
@@ -405,10 +405,10 @@ describe("confidence-score", () => {
 
     const result = await runScriptWithCode(
       {
-        SOURCE_REPO: "smoltbot",
+        SOURCE_REPO: "mnemom-platform",
         SOURCE_REF: "abc1234567890",
         GITHUB_TOKEN: "test-token",
-        DEPLOY_FLAGS: JSON.stringify({ smoltbot: true }),
+        DEPLOY_FLAGS: JSON.stringify({ "mnemom-platform": true }),
       },
       code
     );

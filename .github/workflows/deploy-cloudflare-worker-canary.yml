@@ -36,7 +36,7 @@ on:
         type: string
         default: ""
       script-name:
-        description: "Cloudflare Worker script name (e.g. smoltbot-gateway)"
+        description: "Cloudflare Worker script name (e.g. mnemom-gateway)"
         required: true
         type: string
       service-name:
