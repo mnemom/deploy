@@ -7,7 +7,7 @@
 // Inputs (env vars):
 //   CLOUDFLARE_API_TOKEN      — API token with Analytics:Read
 //   CLOUDFLARE_ACCOUNT_ID     — Cloudflare account ID
-//   SCRIPT_NAME               — Worker script name (e.g. "smoltbot-gateway")
+//   SCRIPT_NAME               — Worker script name (e.g. "mnemom-gateway")
 //   SERVICE_NAME              — Service name matching rollback.yml choices
 //   ENVIRONMENT               — "staging" or "production"
 //   ERROR_THRESHOLD           — Max error rate before triggering rollback (default: 0.05)
